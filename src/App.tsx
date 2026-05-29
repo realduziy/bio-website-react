@@ -1,12 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, SVGProps } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Youtube,
   Tv,
-  Twitch,
-  Instagram,
-  Twitter,
-  Github,
   AudioLines,
   Gamepad,
   MessageSquare,
@@ -29,6 +24,88 @@ import {
   MessageCircle,
   HelpCircle,
 } from "lucide-react";
+
+// Custom SVG components for brand icons removed in newer versions of lucide-react
+const Youtube = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25a29 29 0 0 0-.46-5.33z" />
+    <polygon
+      points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const Twitch = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M21 2H3v16h5v4l4-4h5l4-4V2zm-10 9H9V6h2v5zm4 0h-2V6h2v5z" />
+  </svg>
+);
+
+const Instagram = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+  </svg>
+);
+
+const Twitter = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
+  </svg>
+);
+
+const Github = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+  </svg>
+);
 
 // Social Platforms Data
 interface SocialLink {
@@ -173,6 +250,7 @@ export default function App() {
 
   // References
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const cursorRef = useRef<HTMLDivElement | null>(null);
 
   // Custom Cursor mouse move handling
@@ -214,16 +292,13 @@ export default function App() {
       if (cursorRef.current) cursorRef.current.style.display = "block";
     };
 
-    // Detect if we are on a desktop pointer device
-    const isTouchDevice = window.matchMedia("(pointer: coarse)").matches;
-    if (!isTouchDevice) {
-      document.body.classList.add("custom-cursor-active");
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mousedown", handleMouseDown);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.addEventListener("mouseleave", handleMouseLeave);
-      document.addEventListener("mouseenter", handleMouseEnter);
-    }
+    // Always register cursor listeners so hybrid laptop mouse/trackpads work
+    document.body.classList.add("custom-cursor-active");
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mouseleave", handleMouseLeave);
+    document.addEventListener("mouseenter", handleMouseEnter);
 
     return () => {
       document.body.classList.remove("custom-cursor-active");
@@ -235,11 +310,15 @@ export default function App() {
     };
   }, []);
 
-  // Sync Video Audio and Mute State
+  // Sync Video Audio, Background Music, and Mute State
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = volume;
       videoRef.current.muted = isMuted;
+    }
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+      audioRef.current.muted = isMuted;
     }
   }, [volume, isMuted]);
 
@@ -253,6 +332,16 @@ export default function App() {
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
           console.warn("Autoplay was caught/blocked by browser sandbox: ", err);
+        });
+      }
+    }
+    if (audioRef.current) {
+      audioRef.current.muted = isMuted;
+      audioRef.current.volume = volume;
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("Background audio play blocked: ", err);
         });
       }
     }
@@ -453,13 +542,15 @@ export default function App() {
       {/* 1. Custom Pointer Cursor */}
       <div
         ref={cursorRef}
-        className="fixed top-0 left-0 pointer-events-none z-[9999] hidden select-none will-change-transform"
+        id="custom-cursor-container"
+        className="fixed top-0 left-0 pointer-events-none z-[9999] select-none will-change-transform"
         style={{
           transform: "translate3d(-100px, -100px, 0) translate(-50%, -50%)",
+          display: "none",
         }}
       >
         <img
-          src="/assets/crosshair.png"
+          src="/assets/custom_cursor.png"
           alt="crosshair cursor"
           className="w-10 h-10 object-contain max-w-none"
           onLoad={(e) => {
@@ -479,16 +570,27 @@ export default function App() {
               const fallback = container.querySelector(
                 "#crosshair-fallback",
               ) as HTMLElement;
-              if (fallback) fallback.style.display = "block";
+              if (fallback) fallback.style.display = "flex";
             }
           }}
         />
-        {/* CSS Fallback if image fails to load */}
+        {/* Stunning High Fidelity CSS Fallback Crosshairs Reticle */}
         <div
           id="crosshair-fallback"
-          className="w-[18px] h-[18px] rounded-full border border-stone-400 mix-blend-difference"
+          className="relative w-6 h-6 flex items-center justify-center mix-blend-difference"
           style={{ display: "none" }}
-        />
+        >
+          {/* Centered precision point */}
+          <div className="w-[3px] h-[3px] rounded-full bg-white" />
+          {/* Top reticle line */}
+          <div className="absolute top-0 w-[1.5px] h-1.5 bg-white/70" />
+          {/* Bottom reticle line */}
+          <div className="absolute bottom-0 w-[1.5px] h-1.5 bg-white/70" />
+          {/* Left reticle line */}
+          <div className="absolute left-0 w-1.5 h-[1.5px] bg-white/70" />
+          {/* Right reticle line */}
+          <div className="absolute right-0 w-1.5 h-[1.5px] bg-white/70" />
+        </div>
       </div>
 
       {/* 2. Video Player & Audio System */}
@@ -508,6 +610,12 @@ export default function App() {
             );
             setIsVideoError(true);
           }}
+        />
+        <audio
+          ref={audioRef}
+          src="/assets/background_music.mp3"
+          loop
+          muted={isMuted}
         />
 
         {/* Stellar Cosmic Fallback Background if video is unavailable or erroring */}
@@ -677,7 +785,7 @@ export default function App() {
                           rel="noopener noreferrer"
                           onMouseEnter={() => setHoveredLink(link.name)}
                           onMouseLeave={() => setHoveredLink(null)}
-                          className={`w-14 h-14 pointer-events-auto flex items-center justify-center text-white/55 transition-all duration-300 ${link.color} transform hover:scale-125 hover:drop-shadow-[0_0_10px_currentColor] active:scale-90`}
+                          className={`w-14 h-14 social-btn-target pointer-events-auto flex items-center justify-center text-white/55 transition-all duration-300 ${link.color} transform hover:scale-125 hover:drop-shadow-[0_0_10px_currentColor] active:scale-90`}
                           aria-label={link.name}
                         >
                           <SvgBrandIcon
