@@ -5,14 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: website_test
     ports:
-      # If you stop your old production container, set this to port 8000:
       - "127.0.0.1:8000:80"
-      # If you want to keep BOTH running for testing side-by-side, use 8001 instead:
-      # - "127.0.0.1:8001:80"
     restart: always
     volumes:
-      # OPTIONAL BUT HIGHLY RECOMMENDED:
-      # Map direct VPS asset paths to your container without having to rebuild the image
-      # Create an 'assets' folder on your host machine under '/home/website/web test/assets'
-      # and drop 'background.mp4' or 'profile.jpg' in there.
       - ./assets:/usr/share/nginx/html/assets
