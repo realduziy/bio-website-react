@@ -1,5 +1,3 @@
----
-
 # Profile - Setup & Deployment Guide
 
 This project is a proof of concept built using AI. While it is fully functional, it is intended for demonstration purposes. If you plan to deploy this for production, I recommend forking the repository to address potential bugs and enhance security measures.
@@ -138,13 +136,12 @@ npm run dev
 
 ```
 
-<img width="1915" height="912" alt="image" src="https://github.com/user-attachments/assets/db42f81a-c2b3-4748-a769-0d7b95199c2a" />
-<img width="1905" height="899" alt="image" src="https://github.com/user-attachments/assets/3a3b4fd9-bfdc-464e-97c6-657c88a98c60" />
-
-
-
 Open [http://localhost:3000]() to view your modifications instantly.
 
 ---
 
 *Built with React, Vite, TypeScript, and Tailwind CSS.*
+
+<img width="1915" height="912" alt="image" src="https://github.com/user-attachments/assets/db42f81a-c2b3-4748-a769-0d7b95199c2a" />
+
+<img width="1905" height="899" alt="image" src="https://github.com/user-attachments/assets/3a3b4fd9-bfdc-464e-97c6-657c88a98c60" />
