@@ -1,8 +1,12 @@
-# duziy Profile - Setup & Deployment Guide
+# Profile - Setup & Deployment Guide
 
-This is a premium, high-fidelity profile portfolio website built with **React**, **Vite**, **TypeScript**, and **Tailwind CSS**, designed to support looping background media, dynamic crosshairs, and a fully synced audio system.
+This project is a proof of concept built using AI. While it is fully functional, it is intended for demonstration purposes. If you plan to deploy this for production, I recommend forking the repository to address potential bugs and enhance security measures
+
+This is a profile portfolio website built with **React**, **Vite**, **TypeScript**, and **Tailwind CSS**, designed to support looping background media, dynamic crosshairs, and a fully synced audio system.
 
 The application is containerized with **Docker** and served through **NGINX** (supporting single-page app formatting and routing fallbacks). This setup is ideal for VPS hosting or local staging on Docker environments.
+
+This is based on my other project, which is currently broken: https://github.com/realduziy/bio-website | I'm recreating it to improve the look and make it more modern.
 
 ---
 
