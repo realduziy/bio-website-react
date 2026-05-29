@@ -142,6 +142,8 @@ Open [http://localhost:3000]() to view your modifications instantly.
 
 *Built with React, Vite, TypeScript, and Tailwind CSS.*
 
-<img width="1915" height="912" alt="image" src="https://github.com/user-attachments/assets/db42f81a-c2b3-4748-a769-0d7b95199c2a" />
+<img width="1906" height="896" alt="image" src="https://github.com/user-attachments/assets/7d8910a4-24e7-4955-94fc-8540479a3208" />
 
-<img width="1905" height="899" alt="image" src="https://github.com/user-attachments/assets/3a3b4fd9-bfdc-464e-97c6-657c88a98c60" />
+<img width="1909" height="913" alt="image" src="https://github.com/user-attachments/assets/546991d2-e0fd-424c-a268-887b43194f40" />
+
+
