@@ -161,7 +161,7 @@ function SvgBrandIcon({
   }, [slug]);
 
   if (hasError || !svgContent) {
-    return <Fallback className="w-7 h-7" />;
+    return <Fallback className={className} />;
   }
 
   return (
@@ -824,7 +824,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  <h2 className="text-3xl font-extrabold tracking-widest uppercase mb-8 border-b border-white/10 pb-3 filter drop-shadow-sm text-stone-100">
+                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-widest uppercase mb-8 border-b border-white/10 pb-3 filter drop-shadow-sm text-stone-100">
                     About Me
                   </h2>
 
@@ -892,7 +892,7 @@ export default function App() {
                               Broadcasting
                             </p>
                             <p className="text-stone-400 mt-0.5">
-                              Streaming across multiple platform channels.
+                              Streaming across multiple platforms.
                             </p>
                           </div>
                         </li>
@@ -953,7 +953,7 @@ export default function App() {
                           </span>
                           <a
                             href="mailto:duziyspam@gmail.com"
-                            className="text-stone-200 hover:text-purple-400 hover:underline inline-flex items-center gap-1 mt-1 font-sans"
+                            className="text-stone-200 hover:text-purple-400 hover:underline inline-flex items-center gap-1 mt-1 font-sans break-all"
                           >
                             duziyspam@gmail.com
                           </a>
