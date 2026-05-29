@@ -121,3 +121,25 @@
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.4);
 }
+
+/* Expanded Touch and Click targets for social links */
+.social-btn-target {
+    position: relative;
+    /* Add padding to expand the clickable button container boundaries as requested */
+    padding: 14px !important;
+    box-sizing: border-box;
+}
+
+/* Pseudo element that creates an even larger invisible hit target background */
+.social-btn-target::after {
+    content: "";
+    position: absolute;
+    top: -8px;
+    bottom: -8px;
+    left: -8px;
+    right: -8px;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10;
+    pointer-events: auto;
+}
