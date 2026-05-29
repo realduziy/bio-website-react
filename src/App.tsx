@@ -172,6 +172,42 @@ function SvgBrandIcon({
   );
 }
 
+// Brand hover-driven ambient backgrounds for main card
+const glowColors: Record<string, string> = {
+  YouTube: "shadow-[0_20px_50px_rgba(255,0,0,0.18)] border-red-500/25",
+  Kick: "shadow-[0_20px_50px_rgba(83,252,24,0.18)] border-emerald-400/25",
+  Twitch: "shadow-[0_20px_50px_rgba(145,70,255,0.18)] border-indigo-400/25",
+  TikTok: "shadow-[0_20px_50px_rgba(1,242,255,0.18)] border-cyan-400/25",
+  Instagram: "shadow-[0_20px_50px_rgba(225,48,108,0.18)] border-pink-500/25",
+  "Twitter / X":
+    "shadow-[0_20px_50px_rgba(255,255,255,0.12)] border-stone-400/25",
+  GitHub: "shadow-[0_20px_50px_rgba(255,255,255,0.12)] border-stone-400/25",
+  SoundCloud: "shadow-[0_20px_50px_rgba(255,85,0,0.18)] border-orange-500/25",
+  Roblox: "shadow-[0_20px_50px_rgba(255,0,0,0.18)] border-red-500/25",
+  Reddit: "shadow-[0_20px_50px_rgba(255,69,0,0.18)] border-orange-600/25",
+  "NameMC (Skins)":
+    "shadow-[0_20px_50px_rgba(83,252,24,0.18)] border-emerald-400/25",
+  Steam: "shadow-[0_20px_50px_rgba(0,173,238,0.18)] border-sky-400/25",
+  Telegram: "shadow-[0_20px_50px_rgba(36,161,222,0.18)] border-sky-500/25",
+};
+
+// Brand hover-driven ambient backdrop glows for avatar orbit
+const avatarGlowColors: Record<string, string> = {
+  YouTube: "bg-red-500/20",
+  Kick: "bg-emerald-400/20",
+  Twitch: "bg-indigo-400/20",
+  TikTok: "bg-cyan-400/20",
+  Instagram: "bg-pink-500/20",
+  "Twitter / X": "bg-stone-300/15",
+  GitHub: "bg-stone-300/15",
+  SoundCloud: "bg-orange-500/20",
+  Roblox: "bg-red-500/20",
+  Reddit: "bg-orange-600/20",
+  "NameMC (Skins)": "bg-emerald-400/20",
+  Steam: "bg-sky-400/20",
+  Telegram: "bg-sky-500/20",
+};
+
 export default function App() {
   // Navigation & Interactive States
   const [hasStarted, setHasStarted] = useState(false);
@@ -313,8 +349,8 @@ export default function App() {
   // Sync Video Audio, Background Music, and Mute State
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.volume = volume;
-      videoRef.current.muted = isMuted;
+      videoRef.current.volume = 0;
+      videoRef.current.muted = true;
     }
     if (audioRef.current) {
       audioRef.current.volume = volume;
@@ -326,8 +362,8 @@ export default function App() {
   const startExperience = () => {
     setHasStarted(true);
     if (videoRef.current) {
-      videoRef.current.muted = isMuted;
-      videoRef.current.volume = volume;
+      videoRef.current.muted = true;
+      videoRef.current.volume = 0;
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
@@ -603,7 +639,7 @@ export default function App() {
           src="/assets/background.mp4"
           loop
           playsInline
-          muted={isMuted}
+          muted={true}
           onError={() => {
             console.log(
               "No custom /assets/background.mp4 video found, system utilizing high fidelity cosmic fallback.",
@@ -685,36 +721,55 @@ export default function App() {
             {activeTab === "home" && (
               <motion.div
                 key="home-page"
-                initial={{ opacity: 0, y: 40 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -40 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-                className="w-full max-w-[440px]"
+                exit={{ opacity: 0, y: -30 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="w-full max-w-[440px] sm:max-w-[460px] px-2 sm:px-0"
               >
                 {/* Floating "About Me" Pill Above Block */}
                 <div className="flex justify-center mb-6">
                   <button
                     onClick={() => setActiveTab("about")}
-                    className="group pointer-events-auto cursor-pointer inline-flex items-center gap-2.5 px-6 py-3 rounded-full border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/30 text-xs text-stone-200 tracking-widest uppercase transition-all duration-300 transform hover:scale-105 active:scale-95 backdrop-blur-md shadow-lg"
+                    className="group pointer-events-auto cursor-pointer inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 hover:text-white text-xs text-stone-200 tracking-widest uppercase transition-all duration-300 transform hover:scale-105 active:scale-95 backdrop-blur-md shadow-lg"
                   >
-                    <User className="w-3.5 h-3.5 text-stone-400 group-hover:text-indigo-400 transition-colors" />
+                    <User className="w-3.5 h-3.5 text-stone-400 group-hover:text-purple-400 transition-colors" />
                     <span>About Me</span>
                   </button>
                 </div>
 
-                {/* Main Glass Profile Card block */}
-                <div className="glass-panel w-full p-8 rounded-2xl flex flex-col items-center text-center gap-4 relative">
+                {/* Main Glass Profile Card block with interactive ambient shadow and border */}
+                <div
+                  className={`glass-panel w-full p-8 rounded-2xl flex flex-col items-center text-center gap-4.5 relative transition-all duration-500 ${
+                    hoveredLink
+                      ? glowColors[hoveredLink]
+                      : "shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-white/15"
+                  }`}
+                >
                   {/* Profile Picture Orbit & Spinner block */}
                   <div className="relative w-28 h-28 mt-2">
-                    {/* Subtle outer breathing background glow */}
-                    <div className="absolute -inset-1 rounded-full bg-purple-500/5 blur-sm animate-pulse pointer-events-none" />
-
-                    {/* Glowing rotating gradient orbit outline (No dotted/dashed lines) */}
+                    {/* Dynamic outer breathing background glow that adapts to hovered links */}
                     <div
-                      className={`absolute inset-0 rounded-full border border-white/20 border-r-indigo-400 border-l-purple-400 ${
+                      className={`absolute -inset-2.5 rounded-full blur-md opacity-35 transition-all duration-500 pointer-events-none ${
+                        hoveredLink
+                          ? avatarGlowColors[hoveredLink]
+                          : "bg-purple-500/10"
+                      }`}
+                    />
+
+                    {/* Inner spinning orbits (double ring structure) */}
+                    <div
+                      className={`absolute inset-0 rounded-full border border-white/15 border-r-indigo-400/40 border-l-purple-400/40 ${
                         isSpinning
                           ? "animate-[spin_0.6s_ease-out]"
-                          : "animate-[spin_10s_linear_infinite]"
+                          : "animate-[spin_12s_linear_infinite]"
+                      }`}
+                    />
+                    <div
+                      className={`absolute -inset-1 rounded-full border border-dashed border-white/5 border-t-purple-400/25 border-b-indigo-400/25 ${
+                        isSpinning
+                          ? "animate-[spin_0.6s_reverse_ease-out]"
+                          : "animate-[spin_18s_linear_infinite_reverse]"
                       }`}
                     />
 
@@ -753,7 +808,7 @@ export default function App() {
                       <p className="text-sm text-stone-300 tracking-wide leading-relaxed font-mono">
                         {bioText}
                         <span
-                          className={`inline-block w-2 ml-1 bg-stone-300 text-stone-300 ${cursorVisible ? "opacity-100" : "opacity-0"}`}
+                          className={`inline-block w-2 ml-1 bg-purple-400 text-purple-400 ${cursorVisible ? "opacity-100" : "opacity-0"}`}
                         >
                           |
                         </span>
@@ -762,21 +817,27 @@ export default function App() {
                   </div>
 
                   {/* Hover Cap Indicator Description */}
-                  <div className="h-6 flex items-center justify-center text-[10px] tracking-widest text-[#aaa]/60 uppercase w-full">
+                  <div className="h-6 flex items-center justify-center text-[10px] tracking-widest uppercase w-full">
                     {hoveredLink ? (
-                      <span className="text-purple-300 animate-pulse flex items-center gap-1.5 bg-purple-500/10 border border-purple-500/20 px-3 py-0.5 rounded-full">
-                        <ExternalLink className="w-3 h-3" /> Visit {hoveredLink}
+                      <span className="flex items-center gap-1.5 text-stone-300 tracking-widest font-mono text-[9px] bg-white/[0.04] border border-white/10 px-3 py-1 rounded-full uppercase">
+                        <ExternalLink className="w-2.5 h-2.5 text-purple-400 animate-pulse" />
+                        <span>
+                          Navigate to{" "}
+                          <strong className="text-purple-300 font-bold">
+                            {hoveredLink}
+                          </strong>
+                        </span>
                       </span>
                     ) : (
-                      <span className="text-transparent select-none">
-                        &nbsp;
+                      <span className="text-stone-500/30 select-none font-mono tracking-widest text-[9px]">
+                        Select a gateway below
                       </span>
                     )}
                   </div>
 
-                  {/* Interactive Button Grid (13 social media icons) */}
-                  <div className="grid grid-cols-5 xs:grid-cols-5 sm:grid-cols-5 gap-x-1 gap-y-3.5 pt-1 w-full justify-items-center">
-                    {socialLinks.map((link) => {
+                  {/* Interactive Button Grid (13 social media icons) with glossy high-fidelity circular buttons */}
+                  <div className="grid grid-cols-5 gap-3 md:gap-3.5 pt-1.5 w-full justify-items-center">
+                    {socialLinks.map((link, index) => {
                       return (
                         <a
                           key={link.id}
@@ -785,14 +846,18 @@ export default function App() {
                           rel="noopener noreferrer"
                           onMouseEnter={() => setHoveredLink(link.name)}
                           onMouseLeave={() => setHoveredLink(null)}
-                          className={`w-14 h-14 social-btn-target pointer-events-auto flex items-center justify-center text-white/55 transition-all duration-300 ${link.color} transform hover:scale-125 hover:drop-shadow-[0_0_10px_currentColor] active:scale-90`}
+                          className={`w-[52px] h-[52px] rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.08] hover:border-white/20 pointer-events-auto flex items-center justify-center text-stone-400/80 transition-all duration-300 ${link.color} transform hover:scale-115 hover:-translate-y-0.5 active:scale-95 shadow-sm hover:text-white ${
+                            index === 10 ? "col-start-2" : ""
+                          }`}
                           aria-label={link.name}
                         >
-                          <SvgBrandIcon
-                            slug={link.iconSlug || link.id}
-                            fallback={link.icon}
-                            className="w-[26px] h-[26px] flex items-center justify-center transition-all duration-200"
-                          />
+                          <span className="pointer-events-none w-[22px] h-[22px] flex items-center justify-center">
+                            <SvgBrandIcon
+                              slug={link.iconSlug || link.id}
+                              fallback={link.icon}
+                              className="w-full h-full flex items-center justify-center transition-all duration-200"
+                            />
+                          </span>
                         </a>
                       );
                     })}
@@ -805,180 +870,190 @@ export default function App() {
             {activeTab === "about" && (
               <motion.div
                 key="about-page"
-                initial={{ opacity: 0, y: 40 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -40 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-                className="w-full max-w-2xl px-2 my-8"
+                exit={{ opacity: 0, y: -30 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="w-full max-w-3xl md:max-w-4xl px-2 my-4 md:my-8"
               >
-                {/* About Box Glass Container */}
-                <div className="glass-panel w-full p-6 sm:p-10 rounded-2xl relative">
-                  {/* Top back actions */}
-                  <div className="flex justify-between items-center mb-8 border-b border-white/15 pb-4">
+                {/* About Box Glass Container with responsive padding */}
+                <div className="glass-panel w-full p-5 md:p-8 rounded-2xl relative">
+                  {/* Top back actions & Title row merged to save space */}
+                  <div className="flex items-center gap-4 mb-5 md:mb-6 border-b border-white/10 pb-3.5 md:pb-4">
                     <button
                       onClick={() => setActiveTab("home")}
-                      className="group pointer-events-auto inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-xs text-stone-200 tracking-wider uppercase transition-all duration-200"
+                      className="group pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-xs md:text-sm text-stone-200 tracking-wider uppercase transition-all duration-200"
                     >
-                      <ChevronLeft className="w-4 h-4 text-stone-400 group-hover:text-white group-hover:-translate-x-0.5 transition-all" />
+                      <ChevronLeft className="w-3.5 h-3.5 md:w-4 md:h-4 text-stone-400 group-hover:text-white group-hover:-translate-x-0.5 transition-all" />
                       <span>Back</span>
                     </button>
+
+                    <h2 className="text-lg md:text-xl font-extrabold tracking-widest uppercase text-stone-200">
+                      About Me
+                    </h2>
                   </div>
 
-                  <h2 className="text-xl sm:text-3xl font-extrabold tracking-widest uppercase mb-8 border-b border-white/10 pb-3 filter drop-shadow-sm text-stone-100">
-                    About Me
-                  </h2>
-
-                  {/* About Grid Sections */}
-                  <div className="space-y-8 text-stone-300">
-                    {/* Section 1: Who am I */}
-                    <div className="space-y-3.5">
-                      <div className="flex items-center gap-3 border-l-2 border-purple-500/70 pl-3">
-                        <Terminal className="w-5 h-5 text-purple-400" />
-                        <h3 className="text-base font-bold uppercase tracking-wider text-stone-200">
-                          Who am I...
-                        </h3>
-                      </div>
-                      <p className="text-sm leading-relaxed text-stone-400 font-sans tracking-wide">
-                        Hey there! I'm{" "}
-                        <strong className="text-white">duziy</strong>, just
-                        another person on the internet who loves music, gaming,
-                        creating content, and developing Minecraft servers.
-                      </p>
-                      <p className="text-sm leading-relaxed text-stone-400 font-sans tracking-wide">
-                        I'm all about peace and love, and so should you!
-                      </p>
-                      <p className="text-sm leading-relaxed text-stone-400 font-sans tracking-wide">
-                        I made this website to reach out to more people and
-                        build a brand for myself.
-                      </p>
-                    </div>
-
-                    {/* Section 2: Current Projects */}
-                    <div className="space-y-3.5">
-                      <div className="flex items-center gap-3 border-l-2 border-indigo-400/70 pl-3">
-                        <CheckSquare className="w-5 h-5 text-indigo-400" />
-                        <h3 className="text-base font-bold uppercase tracking-wider text-stone-200">
-                          Current Projects
-                        </h3>
-                      </div>
-
-                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
-                        <li className="flex items-start gap-3 bg-white/[0.02] border border-white/5 p-3 rounded-lg hover:bg-white/[0.04] transition-colors">
-                          <Gamepad className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-bold text-stone-200 uppercase">
-                              Minecraft Server
-                            </p>
-                            <p className="text-stone-400 mt-0.5">
-                              Currently configuration & backend tweaks.
-                            </p>
-                          </div>
-                        </li>
-                        <li className="flex items-start gap-3 bg-white/[0.02] border border-white/5 p-3 rounded-lg hover:bg-white/[0.04] transition-colors">
-                          <Music className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-bold text-stone-200 uppercase">
-                              New Tracks
-                            </p>
-                            <p className="text-stone-400 mt-0.5">
-                              Cooking up some new atmospheric music.
-                            </p>
-                          </div>
-                        </li>
-                        <li className="flex items-start gap-3 bg-white/[0.02] border border-white/5 p-3 rounded-lg hover:bg-white/[0.04] transition-colors">
-                          <Video className="w-4 h-4 text-teal-400 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-bold text-stone-200 uppercase">
-                              Broadcasting
-                            </p>
-                            <p className="text-stone-400 mt-0.5">
-                              Streaming across multiple platforms.
-                            </p>
-                          </div>
-                        </li>
-                        <li className="flex items-start gap-3 bg-white/[0.02] border border-white/5 p-3 rounded-lg hover:bg-white/[0.04] transition-colors">
-                          <Laptop className="w-4 h-4 text-fuchsia-400 mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-bold text-stone-200 uppercase">
-                              Skills Expansion
-                            </p>
-                            <p className="text-stone-400 mt-0.5">
-                              Acquiring deeper knowledge daily.
-                            </p>
-                          </div>
-                        </li>
-                      </ul>
-                    </div>
-
-                    {/* Section 3: Skills list tags */}
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 border-l-2 border-cyan-400/70 pl-3">
-                        <Code className="w-5 h-5 text-cyan-400" />
-                        <h3 className="text-base font-bold uppercase tracking-wider text-stone-200">
-                          Skills &amp; Expertise
-                        </h3>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2.5 pt-1">
-                        {[
-                          "Minecraft Server Configurator",
-                          "Discord Community Management",
-                          "Staff & General Management",
-                          "Music Production",
-                          "Content Creation",
-                        ].map((skill, index) => (
-                          <span
-                            key={index}
-                            className="bg-white/[0.03] hover:bg-white/[0.08] hover:-translate-y-0.5 border border-white/10 hover:border-white/30 text-stone-300 hover:text-white px-4 py-2 rounded-full text-xs transition-all duration-300"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Section 4: Contact Me Info */}
-                    <div className="space-y-3.5 pt-2 border-t border-white/10">
-                      <div className="flex items-center gap-3 border-l-2 border-emerald-400/70 pl-3">
-                        <Send className="w-5 h-5 text-emerald-400 rotate-45" />
-                        <h3 className="text-base font-bold uppercase tracking-wider text-stone-200">
-                          Contact Me
-                        </h3>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
-                        <div className="p-3.5 rounded-lg border border-white/5 bg-white/[0.01]">
-                          <span className="block text-stone-500 uppercase font-bold text-[10px]">
-                            Email Support
-                          </span>
-                          <a
-                            href="mailto:duziyspam@gmail.com"
-                            className="text-stone-200 hover:text-purple-400 hover:underline inline-flex items-center gap-1 mt-1 font-sans break-all"
-                          >
-                            duziyspam@gmail.com
-                          </a>
+                  {/* Redesigned 2-Column Responsive Compact Grid with responsive gap */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8 text-stone-300">
+                    {/* Left Column: Who am I & Contact Details */}
+                    <div className="space-y-4 md:space-y-6">
+                      {/* Section 1: Who am I */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 border-l-2 border-purple-500/70 pl-2">
+                          <Terminal className="w-4 h-4 md:w-4.5 md:h-4.5 text-purple-400" />
+                          <h3 className="text-xs md:text-sm font-bold uppercase tracking-wider text-stone-200">
+                            Who am I
+                          </h3>
                         </div>
-                        <div className="p-3.5 rounded-lg border border-white/5 bg-white/[0.01]">
-                          <span className="block text-stone-500 uppercase font-bold text-[10px]">
-                            Discord ID
-                          </span>
-                          <span className="block text-stone-200 mt-1 font-sans">
-                            @duziy
-                          </span>
+                        <div className="space-y-2 text-xs md:text-sm leading-relaxed text-stone-400 font-sans tracking-wide">
+                          <p>
+                            Hey there! I'm{" "}
+                            <strong className="text-white font-mono">
+                              duziy
+                            </strong>
+                            , just someone on the internet who loves music,
+                            gaming, creating content, and developing Minecraft
+                            servers.
+                          </p>
+                          <p>
+                            I'm all about peace and love, and I created this
+                            space to connect with more people and share what I
+                            make.
+                          </p>
                         </div>
-                        <div className="p-3.5 rounded-lg border border-white/5 bg-white/[0.01]">
-                          <span className="block text-stone-500 uppercase font-bold text-[10px]">
-                            Telegram Feed
-                          </span>
-                          <a
-                            href="https://t.me/duziy"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-stone-200 hover:text-purple-400 hover:underline inline-flex items-center gap-1 mt-1 font-sans"
-                          >
-                            t.me/duziy{" "}
-                            <ExternalLink className="w-3 h-3 text-stone-500" />
-                          </a>
+                      </div>
+
+                      {/* Section 2: Contact Info in clean table format instead of three bulky tiles */}
+                      <div className="space-y-2 pt-2 md:pt-4 border-t border-white/5">
+                        <div className="flex items-center gap-2 border-l-2 border-emerald-400/70 pl-2">
+                          <Mail className="w-4 h-4 md:w-4.5 md:h-4.5 text-emerald-400" />
+                          <h3 className="text-xs md:text-sm font-bold uppercase tracking-wider text-stone-200">
+                            Contact
+                          </h3>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs md:text-sm">
+                          <div className="flex items-center justify-between p-2 md:p-2.5 rounded-lg bg-white/[0.01] border border-white/5">
+                            <span className="text-stone-500 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
+                              Email
+                            </span>
+                            <a
+                              href="mailto:duziyspam@gmail.com"
+                              className="text-stone-300 hover:text-purple-400 hover:underline font-mono"
+                            >
+                              duziyspam@gmail.com
+                            </a>
+                          </div>
+
+                          <div className="flex items-center justify-between p-2 md:p-2.5 rounded-lg bg-white/[0.01] border border-white/5">
+                            <span className="text-stone-500 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
+                              Discord
+                            </span>
+                            <span className="text-stone-300 font-mono">
+                              @duziy
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between p-2 md:p-2.5 rounded-lg bg-white/[0.01] border border-white/5">
+                            <span className="text-stone-500 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
+                              Telegram
+                            </span>
+                            <a
+                              href="https://t.me/duziy"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-stone-300 hover:text-purple-400 hover:underline font-mono"
+                            >
+                              t.me/duziy
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Projects & Skills */}
+                    <div className="space-y-4 md:space-y-6">
+                      {/* Section 3: Current Projects with smaller footprint */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 border-l-2 border-indigo-400/70 pl-2">
+                          <CheckSquare className="w-4 h-4 md:w-4.5 md:h-4.5 text-indigo-400" />
+                          <h3 className="text-xs md:text-sm font-bold uppercase tracking-wider text-stone-200">
+                            Current Projects
+                          </h3>
+                        </div>
+
+                        <ul className="grid grid-cols-2 gap-2 text-[11px] md:text-xs font-mono">
+                          <li className="flex items-start gap-2 bg-white/[0.01] border border-white/5 p-2 md:p-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+                            <Gamepad className="w-3.5 h-3.5 md:w-4 md:h-4 text-red-400 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="font-bold text-stone-200 uppercase text-[9px] md:text-[10px] tracking-wider">
+                                Minecraft
+                              </p>
+                              <p className="text-stone-400 mt-0.5">
+                                Server configs & tweaks.
+                              </p>
+                            </div>
+                          </li>
+                          <li className="flex items-start gap-2 bg-white/[0.01] border border-white/5 p-2 md:p-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+                            <Music className="w-3.5 h-3.5 md:w-4 md:h-4 text-orange-400 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="font-bold text-stone-200 uppercase text-[9px] md:text-[10px] tracking-wider">
+                                Tracks
+                              </p>
+                              <p className="text-stone-400 mt-0.5">
+                                Atmospheric music.
+                              </p>
+                            </div>
+                          </li>
+                          <li className="flex items-start gap-2 bg-white/[0.01] border border-white/5 p-2 md:p-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+                            <Video className="w-3.5 h-3.5 md:w-4 md:h-4 text-teal-400 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="font-bold text-stone-200 uppercase text-[9px] md:text-[10px] tracking-wider">
+                                Streams
+                              </p>
+                              <p className="text-stone-400 mt-0.5">
+                                Broadcasting gameplay.
+                              </p>
+                            </div>
+                          </li>
+                          <li className="flex items-start gap-2 bg-white/[0.01] border border-white/5 p-2 md:p-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+                            <Laptop className="w-3.5 h-3.5 md:w-4 md:h-4 text-fuchsia-400 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="font-bold text-stone-200 uppercase text-[9px] md:text-[10px] tracking-wider">
+                                Learning
+                              </p>
+                              <p className="text-stone-400 mt-0.5">
+                                Expanding systems tech.
+                              </p>
+                            </div>
+                          </li>
+                        </ul>
+                      </div>
+
+                      {/* Section 4: Skills list tags with compact typography */}
+                      <div className="space-y-2 pt-2 md:pt-4 border-t border-white/5">
+                        <div className="flex items-center gap-2 border-l-2 border-cyan-400/70 pl-2">
+                          <Code className="w-4 h-4 md:w-4.5 md:h-4.5 text-cyan-400" />
+                          <h3 className="text-xs md:text-sm font-bold uppercase tracking-wider text-stone-200">
+                            Expertise
+                          </h3>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 md:gap-2">
+                          {[
+                            "Minecraft Server Configurator",
+                            "Discord Community Management",
+                            "Staff & General Management",
+                            "Music Production",
+                            "Content Creation",
+                          ].map((skill, index) => (
+                            <span
+                              key={index}
+                              className="bg-white/[0.02] border border-white/5 text-stone-300 hover:text-white hover:bg-white/[0.06] hover:border-white/20 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full text-[10px] md:text-xs tracking-tight transition-all"
+                            >
+                              {skill}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>
