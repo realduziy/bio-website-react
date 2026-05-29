@@ -1,0 +1,6 @@
+{
+  "name": "duziy",
+  "description": "The official personal portal and links directory for duziy, featuring a background visualizer, sound controls, profile interactions, typewriter bios, and an About Me section.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
