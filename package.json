@@ -16,28 +16,28 @@
     "@tailwindcss/vite": "^4.3.0",
     "@vitejs/plugin-react": "^6.0.2",
     "lucide-react": "^1.17.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "vite": "^8.0.14",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "vite": "^8.0.16",
     "express": "^5.2.1",
     "dotenv": "^17.4.2",
     "motion": "^12.40.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "@types/react": "^19.2.15",
+    "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.5.0",
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.0",
     "tsx": "^4.22.4",
     "typescript": "~6.0.3",
-    "vite": "^8.0.14",
+    "vite": "^8.0.16",
     "@types/express": "^5.0.6"
   },
   "allowScripts": {
-    "@google/genai@2.7.0": true,
     "esbuild@0.28.0": true,
-    "protobufjs@7.6.2": true
+    "protobufjs@7.6.2": true,
+    "@google/genai@2.8.0": true
   }
 }
