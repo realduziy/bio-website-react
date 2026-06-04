@@ -27,7 +27,7 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #a78bfa; /* purple-400 */
+    background: #22d3ee; /* aqua/cyan-400 */
     cursor: pointer;
     transition:
         transform 0.12s ease,
@@ -44,7 +44,7 @@
     height: 10px;
     border: 0;
     border-radius: 50%;
-    background: #a78bfa;
+    background: #22d3ee; /* aqua/cyan-400 */
     cursor: pointer;
     transition:
         transform 0.12s ease,
@@ -88,6 +88,13 @@
     }
 }
 
+/* Hide custom pointer cursor completely on touch screen coarse pointers to avoid buggy tap artifacts */
+@media (pointer: coarse) {
+    #custom-cursor-container {
+        display: none !important;
+    }
+}
+
 /* Custom background glow overlay */
 .bg-ambient-glow {
     background: radial-gradient(
@@ -99,12 +106,12 @@
 
 /* Smooth glass effect helper */
 .glass-panel {
-    background: rgba(0, 0, 0, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(12px);
+    background: rgba(10, 9, 21, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(16px);
     box-shadow:
-        0 15px 40px rgba(0, 0, 0, 0.8),
-        inset 0 0 20px rgba(255, 255, 255, 0.05);
+        0 25px 60px rgba(0, 0, 0, 0.85),
+        inset 0 1px 1px rgba(255, 255, 255, 0.1);
 }
 
 /* Scrollbar styles */
@@ -142,4 +149,15 @@
     cursor: pointer;
     z-index: 10;
     pointer-events: auto;
+}
+
+/* Keyframes for equalizer vertical bouncy motion */
+@keyframes vertical-bounce {
+    0%,
+    100% {
+        transform: scaleY(0.2);
+    }
+    50% {
+        transform: scaleY(1);
+    }
 }
