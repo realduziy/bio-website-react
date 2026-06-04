@@ -1,61 +1,90 @@
-# Profile - Setup & Deployment Guide
+# 🚀 First-Time Setup & Full Customization Guide
 
-This project is a proof of concept built using AI. While it is fully functional, it is intended for demonstration purposes. If you plan to deploy this for production, I recommend forking the repository to address potential bugs and enhance security measures.
+> ⚠️ **AI-Generated Proof-of-Concept Disclaimer**
+> *   **AI Crafted:** This entire application was co-created/built with AI.
+> *   **Use as a Base:** If you plan to deploy or use this, it is highly recommended to treat it strictly as a **base template/proof of concept** and manually edit, audit, or rewrite parts as needed.
+> *   **Potential Edge Cases:** Because this is an experimental proof of concept, there could be security issues or miscellaneous system problems that arise if deployed into sensitive production environments without proper manual code auditing or security hardening.
 
-This is a profile portfolio website built with **React**, **Vite**, **TypeScript**, and **Tailwind CSS**, designed to support looping background media, dynamic crosshairs, and a fully synced audio system.
+Premium, high-fidelity personal profile and web portfolio! This is a comprehensive, step-by-step developer and creator manual. 
 
-The application is containerized with **Docker** and served through **NGINX** (supporting single-page app formatting and routing fallbacks). This setup is ideal for VPS hosting or local staging on Docker environments.
-
-This is based on my other project, which is currently broken: [https://github.com/realduziy/bio-website](https://www.google.com/search?q=https://github.com/realduziy/bio-website) | I'm recreating it to improve the look and make it more modern.
-
----
-
-## 📋 Prerequisites
-
-* **Node.js (v24+):** For local development and dependency management.
-* **Docker & Docker Compose:** For containerized deployment.
-* **A Linux VPS:** (If you intend to host this live).
+This guide is structured so you can **edit whatever you want, go wherever you need to in the codebase, and customize every single element** to suit your personal brand, aesthetic choice, and target background environment from scratch.
 
 ---
 
-## 🛠️ Setup & Customization Guide
+## 🛠️ Step 1: Getting Started (First-Time Setup)
 
-### 1. Customizing Media Assets
+To launch this application locally on your computer for the very first time, make sure you have [Node.js](https://nodejs.org/) installed, and then run these commands in your project root directory:
 
-Place your branding and atmospheric assets inside the `/assets` folder:
+```bash
+# 1. Install all required dependencies
+npm install
 
-* **Profile Photo:** Replace `/assets/profile.jpg` (or SVG initials fallback will display beautifully).
-* **Atmospheric Video:** Add `/assets/background.mp4` for a moving dark canvas video.
-* **Background Soundtrack:** Insert `/assets/background_music.mp3` to loop serene space ambient audio.
-* **Cursor Reticle:** Drop `/assets/custom_cursor.png` to define your custom cursor crosshairs (renders a precise CSS combat reticle fallback on failure).
-* **Favicon:** Use `/assets/favicon.ico` for your browser tab identity.
+# 2. Fire up the high-performance local dev server
+npm run dev
+```
 
-### 2. Live Content Modifications
-
-Open `/src/App.tsx` and adjust state definitions directly:
-
-* **Typewriter Bio:** Modify `bioMessages` array around line 167 to alter your typewriter headings.
-* **Social Connections:** Customize `socialLinks` grid list starting around line 330 with your respective profile links and icons.
-
-### 3. Configuration & Security
-
-* If you add features requiring API keys, create a `.env` file in the root directory.
-* **Important:** Ensure your `.env` file is included in your `.gitignore` to prevent leaking sensitive credentials.
+Once executed, open your browser and navigate to **`http://localhost:3000`** to see your portfolio running live. Any edits you make in the code editor will live-reload instantly!
 
 ---
 
-## 🚀 Production Deployment & Execution
+## 📝 Step 2: "Edit Whatever, Go Wherever" Customization Guide
 
-This project is packaged with a multi-stage `Dockerfile` (using `node:24-slim`) and a `docker-compose.yml` to build static assets and run them securely.
+Every component has been cleanly designed with high modularity in TypeScript. Here is the full map of where files reside and how to edit them:
 
-### 🐳 Running with Docker & Compose
+### 1. Change Your Discord ID, Username, and Typewriter Bio
+*   **Where to go:** `src/App.tsx`
+*   **How to customize:**
+    *   **Discord User ID (For Presence Sync):** Locate `const discordId = "..."` at the top of the file (usually around line 125). Change this string to your developer Discord User ID to automatically stream your live Status (Online, Idle, DND) and status badges!
+    *   **Typewriter Bios:** Find the `const bioMessages = [...]` array around line 167. You can add, edit, or remove strings inside this list to customize the text that automatically types out on your landing screen.
+    *   **Title/Header Text:** In the component layout, you can edit the instances of `duziy` or your custom handle directly within the paragraph files inside the main profile block.
 
-Using Docker Compose is the most robust way to deploy and host this web portfolio.
+### 2. Customize Your Social & Platform Links
+*   **Where to go:** `src/App.tsx`
+*   **How to customize:**
+    *   Find the layout sections mapping your social profile badges. You can edit the URLs, labels, and icons. For example, search for standard links or buttons like:
+        *   `https://github.com/...`
+        *   `https://twitch.tv/...`
+        *   `https://youtube.com/...`
+    *   Replace them with your own channel and profile links. Modify the Tailwind hover classes (e.g., `hover:text-cyan-400` or `hover:border-cyan-500/30`) to match your personal color scheme!
 
-#### Step 1: Create a `docker-compose.yml` file
+### 3. Alter Your Background Video, Background Audio, & Brand Icons (The `/assets` Folder)
+*   **Where to go:** The `/assets` folder at the root of your project directory, or the URLs specified in `src/App.tsx`.
+*   **How to customize:**
+    *   **Background Live Video Loop:** Put your own `.mp4` video inside the `/assets` folder and name it `background.mp4` (replacing the default). Alternatively, search for the `<video>` tag within `src/App.tsx` and swap the `src` attribute to any hosting URL or another local path.
+    *   **Portfolio Soundtrack:** Place an `.mp3` background music loop inside `/assets` and name it `background_music.mp3`. Users can toggle this with the dynamic musical play button on the page! (The ambient player supports volume scaling and play/pause state loops natively).
+    *   **Custom Cursor Combat Reticle:** Place a PNG inside `/assets` named `custom_cursor.png` to change the custom cursor design.
 
-Run `nano docker-compose.yml` on your server and enter:
+### 4. Edit Your "About Me" Specialty Cards & Skills
+*   **Where to go:** `src/App.tsx` (Specifically the tabs section under `activeTab === "about"`)
+*   **How to customize:**
+    *   You are entirely in control of your core grid categories!
+    *   Locate the unordered list or grid blocks containing elements like **Minecraft Server**, **Music Production**, **Continuous Learning**, and **Content Creation**.
+    *   You can rewrite the labels and tags, swap out Lucide icons (like `<Gamepad />`, `<Music />`, `<Laptop />`, `<Video />`), and write descriptions showing off your creative work, server modifications, specs, or designs.
 
+### 5. Adjust the Modern Top Header (About Me Pill & View Counter)
+*   **Where to go:** `src/App.tsx` (The dynamic header component division, around line 1245)
+*   **How to customize:**
+    *   **About Me Button:** This acts as a streamlined interactive tab switch. Customize its padding and scale using classes like `px-3.5 py-2 text-xs sm:text-xs md:text-xs lg:text-sm`.
+    *   **Views Counter Styling:** Fully scales proportionally. Customize its accent color (currently high-contrast cyan `#06b6d4`, change it to any color like rose `#f43f5e`, emerald `#10b981`, or gold `#eab308`). This renders dynamic counts natively out of `/api/visitor/count`.
+
+### 6. Manage Pre-Seeded / Fallback Playback Playlists
+*   **Where to go:** `server.ts` (Startup block)
+*   **How to customize:**
+    *   Locate `let recentlyPlayed: any[] = [];` around line 180.
+    *   We pre-seed standard high-quality tracks if cache is empty so you never have empty or glitchy layouts. You can rewrite the pre-seeded songs list array with your target tracks, artist names, albums, and Spotify Album Art covers to make it uniquely yours on launch!
+
+---
+
+## 🐋 Step 3: Production Hosting & Deployment (Full Details)
+
+Once you've made your edits, you can launch it in a production environment (like a Virtual Private Server / VPS) using Docker or a traditional web proxy.
+
+### A. The Docker Road (Recommended)
+
+Docker packages all files, servers, and configurations into a single sandboxed container.
+
+#### 1. Setup Your Docker Compose
+Create a `docker-compose.yml` file in your project directory:
 ```yaml
 services:
   website-bio:
@@ -65,37 +94,26 @@ services:
     container_name: website_prod
     restart: always
     ports:
-      - "127.0.0.1:8000:80"
+      - "127.0.0.1:8000:3000"
     volumes:
       - ./assets:/usr/share/nginx/html/assets
-
 ```
 
-> ⚠️ **Note on Ports:** Mapped as `"127.0.0.1:8000:80"` to securely isolate native port access behind a server reverse proxy (like Nginx).
-
-#### Step 2: Assemble and Run
-
-Execute the following in your workspace:
-
+#### 2. Run the Container
 ```bash
-# Build and start the container
+# Build the production assets container and let it run in the background
 docker compose up -d --build
-
 ```
-
-> 💡 **Note on Updates:** If you change your code or assets, re-run the command above to rebuild the container image.
+Your production profile portfolio is now live on port `8000` locally!
 
 ---
 
-## 🌐 Connecting Domain & SSL Certificates (Let's Encrypt)
+### B. Configuring Custom Domain & SSL (HTTPS)
 
-Secure your deployment with HTTPS by setting up an external reverse proxy on your Linux host.
+To wire up your domain (e.g., `yourdomain.com`) and secure it with a free SSL certificate from Let's Encrypt:
 
-### Nginx Host Configuration:
-
-1. Map your domain registrar's **A Record** to your VPS public IPv4 Address.
-2. Edit your local host's configuration under `/etc/nginx/sites-available/default`:
-
+#### 1. Create NGINX Configuration File on your host VPS:
+Create or edit `/etc/nginx/sites-available/default`:
 ```nginx
 server {
     listen 80;
@@ -109,41 +127,19 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
-
 ```
 
-3. Test your Nginx configuration with `sudo nginx -t` and reload using `sudo systemctl reload nginx`.
-4. Procure security certificates with Certbot:
-
+#### 2. Apply and Secure with Certbot (HTTPS)
 ```bash
+# Test configurations and reload Nginx
+sudo nginx -t
+sudo systemctl reload nginx
+
+# Install Let's Encrypt Certbot
 sudo apt install certbot python3-certbot-nginx
+
+# Request and configure your SSL certificates automatically
 sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
-
 ```
 
----
-
-## 💻 Local Workspace Development
-
-To review code modifications on your native desktop workstation before pushing them live:
-
-```bash
-# 1. Install workspace environment modules
-npm install
-
-# 2. Fire up the high performance local dev server
-npm run dev
-
-```
-
-Open [http://localhost:3000]() to view your modifications instantly.
-
----
-
-*Built with React, Vite, TypeScript, and Tailwind CSS.*
-
-<img width="1906" height="896" alt="image" src="https://github.com/user-attachments/assets/7d8910a4-24e7-4955-94fc-8540479a3208" />
-
-<img width="1909" height="913" alt="image" src="https://github.com/user-attachments/assets/546991d2-e0fd-424c-a268-887b43194f40" />
-
-
+You are now fully set up with a secure, highly-scalable, pristine visual web portfolio! Run, customize, and build something unique! 🚀
