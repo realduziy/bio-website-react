@@ -141,5 +141,13 @@ sudo apt install certbot python3-certbot-nginx
 # Request and configure your SSL certificates automatically
 sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 ```
+<img width="1913" height="878" alt="image" src="https://github.com/user-attachments/assets/93c3747e-0e61-476f-9f1b-5072e12e4471" />
+<img width="1908" height="882" alt="image" src="https://github.com/user-attachments/assets/6744b6f1-9deb-4352-b4bc-b4bcfd343f46" />
+<img width="1913" height="884" alt="image" src="https://github.com/user-attachments/assets/4f656825-d300-41a3-96e1-3dbfcad52d16" />
+<img width="1915" height="958" alt="image" src="https://github.com/user-attachments/assets/3b4c0b63-67f5-4876-b957-f44b4fe8bc20" />
+<img width="1916" height="891" alt="image" src="https://github.com/user-attachments/assets/8a2fbf77-0c79-4f0c-b178-773ccce90238" />
 
-You are now fully set up with a secure, highly-scalable, pristine visual web portfolio! Run, customize, and build something unique! 🚀
+
+
+
+
