@@ -38,12 +38,15 @@ Every component has been cleanly designed with high modularity in TypeScript. He
     *   **Simultaneous PerfectSync:** When the page loads, both the background loop video and background soundtrack are fully paused at `0.0` seconds. Selecting `'Enter Experience'` triggers `video.play()` and `audio.play()` synchronously inside a bulletproof `try/catch` guard mechanism. This bypasses rigid web browser autoplay restrictions without causing core UI rendering blocks.
     *   **Custom Crosshair Integration:** The custom reticle pointer operates immediately on page load, rendered at a peak configuration layer (`z-index: 20000`) so it hovers smoothly on top of the blacked-out epilepsy welcome layer.
 
-### 2. Change Your Discord ID, Username, and Typewriter Bio
-*   **Where to go:** `src/App.tsx`
+### 2. Configure Discord Settings (Snowflake ID, Client ID & Client Secret)
+*   **Where to go:** Your `.env` configuration file, or the interactive **Admin Settings Panel** (accessible directly from your visual interface).
 *   **How to customize:**
-    *   **Discord User ID (For Presence Sync):** Locate `const discordId = "..."` at the top of the file (usually around line 125). Change this string to your developer Discord User ID to automatically stream your live Status (Online, Idle, DND) and status badges!
-    *   **Typewriter Bios:** Find the `const bioMessages = [...]` array around line 167. You can add, edit, or remove strings inside this list to customize the text that automatically types out on your landing screen.
-    *   **Title/Header Text:** In the component layout, you can edit the instances of `duziy` or your custom handle directly within the paragraph files inside the main profile block.
+    *   **Fallback Variables (.env):** Define default credentials in your root `.env` file, or leave them blank/stripped when uploading the source code to GitHub:
+        *   `DEFAULT_DISCORD_ID`: Sets the default fallback tracking Snowflake ID (e.g. `1025531959736860714`).
+        *   `DISCORD_CLIENT_ID`: (Optional) Your Discord Application Client ID.
+        *   `DISCORD_CLIENT_SECRET`: (Optional) Your Discord Application Client Secret.
+    *   **Interactive Admin Panel:** Log into the Admin Control Panel in the interface. You can set and save your active Discord ID, Client ID, and Client Secret. These are written safely server-side to `discord_config.json` in your mounted persistent volume, so your code remains completely clean of credentials.
+    *   **Typewriter Bios:** Find the `const bioMessages = [...]` array within `src/App.tsx`. You can alter those strings to customize the typing text sequence.
 
 ### 3. Customize Your Social & Platform Links
 *   **Where to go:** `src/App.tsx`
@@ -90,23 +93,42 @@ Once you've made your edits, you can launch it in a production environment (like
 
 Docker packages all files, servers, and configurations into a single sandboxed container.
 
-#### 1. Setup Your Docker Compose
-Create a `docker-compose.yml` file in your project directory:
+#### 1. Setup Your Environmental Variables (`.env`)
+Before continuing, create a `.env` file in your root folder based on `.env.example`:
+```bash
+cp .env.example .env
+```
+Fill out your administrative and integration credentials:
+*   `ADMIN_USERNAME_HASH`: Put either your plain-text administrative username (e.g. `admin`) or its SHA-256 hash.
+*   `ADMIN_PASSWORD_HASH`: Put either your plain-text administrative password (e.g. `MySecurePassword!`) or its SHA-256 hash.
+*   `DEFAULT_DISCORD_ID`: Your Discord User Snowflake ID (e.g. `1025531959736860714`).
+*   `DISCORD_CLIENT_ID`: (Optional) Your Discord application Client ID.
+*   `DISCORD_CLIENT_SECRET`: (Optional) Your Discord application Client Secret.
+
+*Note: Your `.env` containing administrative credentials should be kept private and never uploaded to public GitHub repositories!*
+
+#### 2. Setup Your Docker Compose
+Your `docker-compose.yml` file is configured as follows for maximum reliability:
 ```yaml
 services:
-  website-bio:
+  website-test:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: website_prod
-    restart: always
+    container_name: website_test
+    env_file:
+      - .env
     ports:
+      # Map host port 8000 (or whichever you proxy to from your VPS Nginx)
+      # to container port 3000 where our Express server listens.
       - "127.0.0.1:8000:3000"
+    restart: always
     volumes:
-      - ./assets:/usr/share/nginx/html/assets
+      # Map direct VPS asset paths to your container to persist data across container restarts and builds
+      - ./assets:/app/assets
 ```
 
-#### 2. Run the Container
+#### 3. Run the Container
 ```bash
 # Build the production assets container and let it run in the background
 docker compose up -d --build
