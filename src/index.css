@@ -75,15 +75,10 @@
     }
 }
 
-/* Base override for hide system cursor when on Desktop */
+/* Base override to hide system cursor when on Desktop */
 @media (pointer: fine) {
-    .custom-cursor-active {
-        cursor: none !important;
-    }
-    .custom-cursor-active a,
-    .custom-cursor-active button,
-    .custom-cursor-active input,
-    .custom-cursor-active [role="button"] {
+    .custom-cursor-active,
+    .custom-cursor-active * {
         cursor: none !important;
     }
 }

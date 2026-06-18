@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: website_test
+    env_file:
+      - .env
     ports:
       # Map host port 8000 (or whichever you proxy to from your VPS Nginx)
       # to container port 3000 where our Express server listens.
@@ -13,7 +15,6 @@ services:
     restart: always
     volumes:
       # OPTIONAL BUT HIGHLY RECOMMENDED:
-      # Map direct VPS asset paths to your container without having to rebuild the image
-      # Create an 'assets' folder on your host machine under '/home/website/web test/assets'
-      # and drop 'background.mp4' or 'profile.jpg' in there.
-      - ./assets:/usr/share/nginx/html/assets
+      # Map direct VPS asset paths to your container to persist data across container restarts and builds
+      # Maps local 'assets' folder on host machine to the container's '/app/assets' folder.
+      - ./assets:/app/assets

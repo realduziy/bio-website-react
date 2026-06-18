@@ -44,41 +44,47 @@ export default defineConfig(() => {
                   const normUsername = username.trim().toLowerCase();
                   const normPassword = password.trim();
 
-                  // Default hashes correspond to username: duziydev / password: EAJBN)(*&UDF
-                  let expectedUserHash = (
+                  const expectedUserRawOrHash = (
                     process.env.ADMIN_USERNAME_HASH || ""
                   ).trim();
-                  let expectedPassHash = (
+                  const expectedPassRawOrHash = (
                     process.env.ADMIN_PASSWORD_HASH || ""
                   ).trim();
 
-                  if (!expectedUserHash || expectedUserHash.length !== 64) {
-                    expectedUserHash =
-                      "01d370f6ec03e7742d5c5fccc6e5529d27ccf4eb207ba308fe327e61049baf11";
-                  }
-                  if (!expectedPassHash || expectedPassHash.length !== 64) {
-                    expectedPassHash =
-                      "898deff28174fa0f9fa08cae92166d40e1c10f54c554f05d9ae6ff31fd0dd07d";
+                  if (!expectedUserRawOrHash || !expectedPassRawOrHash) {
+                    res.writeHead(401, { "Content-Type": "application/json" });
+                    return res.end(
+                      JSON.stringify({
+                        authenticated: false,
+                        error: "Administrative access variables are not configured in your environmental variables (.env). Please set ADMIN_USERNAME_HASH and ADMIN_PASSWORD_HASH.",
+                      }),
+                    );
                   }
 
-                  const inputUserHash = sha256(normUsername);
-                  const inputPassHash = sha256(normPassword);
-
+                  // Check 1: Support direct plain-text credential matching
                   let matches = false;
-                  try {
-                    const uMatch = crypto.timingSafeEqual(
-                      Buffer.from(inputUserHash),
-                      Buffer.from(expectedUserHash),
-                    );
-                    const pMatch = crypto.timingSafeEqual(
-                      Buffer.from(inputPassHash),
-                      Buffer.from(expectedPassHash),
-                    );
-                    matches = uMatch && pMatch;
-                  } catch {
-                    matches =
-                      inputUserHash === expectedUserHash &&
-                      inputPassHash === expectedPassHash;
+                  if (normUsername === expectedUserRawOrHash.toLowerCase() && normPassword === expectedPassRawOrHash) {
+                    matches = true;
+                  } else {
+                    // Check 2: Support SHA-256 hash matching
+                    const inputUserHash = sha256(normUsername);
+                    const inputPassHash = sha256(normPassword);
+
+                    try {
+                      const uMatch = crypto.timingSafeEqual(
+                        Buffer.from(inputUserHash),
+                        Buffer.from(expectedUserRawOrHash),
+                      );
+                      const pMatch = crypto.timingSafeEqual(
+                        Buffer.from(inputPassHash),
+                        Buffer.from(expectedPassRawOrHash),
+                      );
+                      matches = uMatch && pMatch;
+                    } catch {
+                      matches =
+                        inputUserHash === expectedUserRawOrHash &&
+                        inputPassHash === expectedPassRawOrHash;
+                    }
                   }
 
                   if (matches) {
@@ -113,6 +119,12 @@ export default defineConfig(() => {
     ],
     build: {
       assetsDir: "build_assets",
+      rollupOptions: {
+        external: (id) =>
+          id.endsWith(".node") ||
+          id.includes("@tailwindcss/oxide") ||
+          id.includes("tailwindcss-oxide"),
+      },
     },
     define: {
       __ADMIN_USERNAME_HASH__: JSON.stringify(

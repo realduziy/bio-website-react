@@ -32,6 +32,9 @@ import {
   ListMusic,
 } from "lucide-react";
 
+// Track if current tab/load has already successfully recorded a visitor hit
+let isHitLoggedThisLoad = false;
+
 // Custom SVG components for brand icons removed in newer versions of lucide-react
 const Youtube = (props: SVGProps<SVGSVGElement>) => (
   <svg
@@ -321,6 +324,11 @@ export default function App() {
     }
     return "1025531959736860714";
   });
+  const [discordClientId, setDiscordClientId] = useState("");
+  const [discordClientSecret, setDiscordClientSecret] = useState("");
+  const [tempDiscordClientId, setTempDiscordClientId] = useState("");
+  const [tempDiscordClientSecret, setTempDiscordClientSecret] = useState("");
+
   const [discordStatus, setDiscordStatus] = useState<{
     status: "online" | "idle" | "dnd" | "offline";
     customStatus?: string;
@@ -340,6 +348,7 @@ export default function App() {
 
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
   const [recentlyPlayedSongs, setRecentlyPlayedSongs] = useState<any[]>([]);
+  const [topPlayedSongs, setTopPlayedSongs] = useState<any[]>([]);
   const [saveStatus, setSaveStatus] = useState("");
 
   // Load configuration, visitor stats and recently played history on mount
@@ -364,49 +373,93 @@ export default function App() {
             setTempDiscordId(localSavedId);
           }
         }
+        if (data.discordClientId) {
+          setDiscordClientId(data.discordClientId);
+          setTempDiscordClientId(data.discordClientId);
+        }
+        if (data.discordClientSecret) {
+          setDiscordClientSecret(data.discordClientSecret);
+          setTempDiscordClientSecret(data.discordClientSecret);
+        }
       })
       .catch((err) => {
         console.warn("Could not retrieve server-side Discord config:", err);
       });
 
-    // 2. Track page visitor (unique hit counter)
+    // 2. Track page visitor (unique hit counter) with double-firing session guards
     const localFallbackCount = localStorage.getItem("portfolio_total_views");
 
     if (localFallbackCount) {
       setVisitorCount(parseInt(localFallbackCount, 10));
     }
 
-    const fingerprint = getFingerprint();
+    const hasSessionHitLogged =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("portfolio_hit_registered") === "true";
 
-    fetch(`/api/visitor/hit?t=${Date.now()}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fp: fingerprint }),
-      cache: "no-store",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data.count === "number") {
-          setVisitorCount(data.count);
-          localStorage.setItem("portfolio_total_views", data.count.toString());
-        }
+    if (isHitLoggedThisLoad || hasSessionHitLogged) {
+      // Already tracked in this lifecycle or active browser session, just grab the stable count from server RAM
+      fetch(`/api/visitor/count?t=${Date.now()}`, {
+        cache: "no-store",
       })
-      .catch((err) => {
-        console.warn("Could not log hit, retrieving stable counter count:", err);
-        fetch(`/api/visitor/count?t=${Date.now()}`, {
-          cache: "no-store",
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data.count === "number") {
+            setVisitorCount(data.count);
+            localStorage.setItem(
+              "portfolio_total_views",
+              data.count.toString(),
+            );
+          }
         })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data && typeof data.count === "number") {
-              setVisitorCount(data.count);
-              localStorage.setItem("portfolio_total_views", data.count.toString());
-            }
-          })
-          .catch(() => {});
-      });
+        .catch(() => {});
+    } else {
+      // Set lock immediately to block concurrent StrictMode mounting hooks
+      isHitLoggedThisLoad = true;
+      const fingerprint = getFingerprint();
 
-    // 3. Polling for Recently Played cached songs list
+      fetch(`/api/visitor/hit?t=${Date.now()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fp: fingerprint }),
+        cache: "no-store",
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data.count === "number") {
+            setVisitorCount(data.count);
+            localStorage.setItem(
+              "portfolio_total_views",
+              data.count.toString(),
+            );
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("portfolio_hit_registered", "true");
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn(
+            "Could not log hit, retrieving stable counter count:",
+            err,
+          );
+          fetch(`/api/visitor/count?t=${Date.now()}`, {
+            cache: "no-store",
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data && typeof data.count === "number") {
+                setVisitorCount(data.count);
+                localStorage.setItem(
+                  "portfolio_total_views",
+                  data.count.toString(),
+                );
+              }
+            })
+            .catch(() => {});
+        });
+    }
+
+    // 3. Polling for Recently Played and Top Spotify songs lists
     const fetchRecentlyPlayed = () => {
       fetch("/api/recently-played")
         .then((res) => res.json())
@@ -418,13 +471,28 @@ export default function App() {
         .catch(() => {});
     };
 
+    const fetchTopPlayed = () => {
+      fetch("/api/top-tracks")
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setTopPlayedSongs(data);
+          }
+        })
+        .catch(() => {});
+    };
+
     fetchRecentlyPlayed();
-    const rpInterval = setInterval(fetchRecentlyPlayed, 15000);
+    fetchTopPlayed();
+    const rpInterval = setInterval(() => {
+      fetchRecentlyPlayed();
+      fetchTopPlayed();
+    }, 15000);
 
     return () => clearInterval(rpInterval);
   }, []);
 
-  const saveDiscordConfigToServer = async (targetId: string) => {
+  const saveDiscordConfigToServer = async (targetId: string, targetClientId: string = "", targetClientSecret: string = "") => {
     setSaveStatus("Saving...");
     try {
       const res = await fetch("/api/discord-config", {
@@ -434,6 +502,8 @@ export default function App() {
           username: adminUsername,
           password: adminPassword,
           discordId: targetId,
+          discordClientId: targetClientId,
+          discordClientSecret: targetClientSecret,
         }),
       });
       if (!res.ok) {
@@ -448,8 +518,6 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 4000);
     }
   };
-
-
 
   // Typewriter bio states
   const bioMessages = ["Just some guy on the internet!", "Just live a little!"];
@@ -548,6 +616,18 @@ export default function App() {
     }
   }, [volume, isMuted]);
 
+  // Guarantee initial reset/paused state on page load
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  }, []);
+
   // Handle Play on Start Click
   const startExperience = () => {
     setHasStarted(true);
@@ -559,25 +639,44 @@ export default function App() {
     ) {
       audioContextRef.current.resume();
     }
+
+    // Explicitly align timeline to 0 at start
     if (videoRef.current) {
+      videoRef.current.currentTime = 0;
       videoRef.current.muted = true;
       videoRef.current.volume = 0;
-      const playPromise = videoRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn("Autoplay was caught/blocked by browser sandbox: ", err);
-        });
-      }
     }
     if (audioRef.current) {
+      audioRef.current.currentTime = 0;
       audioRef.current.muted = isMuted;
       audioRef.current.volume = volume;
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn("Background audio play blocked: ", err);
-        });
+    }
+
+    // Play both simultaneously with bulletproof error handling
+    try {
+      if (videoRef.current) {
+        const vPromise = videoRef.current.play();
+        if (vPromise !== undefined) {
+          vPromise.catch((err) => {
+            console.warn("PerfectSync: Video play on start blocked or caught:", err);
+          });
+        }
       }
+    } catch (err) {
+      console.error("PerfectSync: Video play synchronous error caught:", err);
+    }
+
+    try {
+      if (audioRef.current) {
+        const aPromise = audioRef.current.play();
+        if (aPromise !== undefined) {
+          aPromise.catch((err) => {
+            console.warn("PerfectSync: Audio play on start blocked or caught:", err);
+          });
+        }
+      }
+    } catch (err) {
+      console.error("PerfectSync: Audio play synchronous error caught:", err);
     }
   };
 
@@ -606,7 +705,7 @@ export default function App() {
 
   // Toggle playback state manually (Play/Pause)
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    if (!videoRef.current) return;
     initVisualizer();
     if (
       audioContextRef.current &&
@@ -615,74 +714,132 @@ export default function App() {
       audioContextRef.current.resume();
     }
     if (isPlaying) {
-      audioRef.current.pause();
-      if (videoRef.current) videoRef.current.pause();
+      videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.muted = isMuted;
-      audioRef.current.volume = volume;
-      const playPromise = audioRef.current.play();
+      videoRef.current.muted = true;
+      videoRef.current.volume = 0;
+      const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
-        playPromise.catch((e) => console.warn("Audio error: ", e));
-      }
-      if (videoRef.current) {
-        videoRef.current.play().catch((e) => console.warn("Video error: ", e));
+        playPromise.catch((e) => console.warn("Video error: ", e));
       }
       setIsPlaying(true);
     }
   };
 
-  // Synchronize backgrounds when user switches tabs (tab out sync fix)
+  // Lockstep Video-Audio Master/Slave Synchronization System
   useEffect(() => {
     if (!hasStarted) return;
 
-    const syncVideoWithAudio = () => {
-      if (videoRef.current && audioRef.current) {
-        // Force play/pause state synchronization
-        if (isPlaying) {
-          if (audioRef.current.paused) {
-            audioRef.current.play().catch(() => {});
-          }
-          if (videoRef.current.paused) {
-            videoRef.current.play().catch(() => {});
-          }
-        } else {
-          if (!audioRef.current.paused) {
-            audioRef.current.pause();
-          }
-          if (!videoRef.current.paused) {
-            videoRef.current.pause();
-          }
-        }
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video || !audio) return;
 
-        // Check if video and audio drift too much
-        const audioTime = audioRef.current.currentTime;
-        const videoTime = videoRef.current.currentTime;
-        const videoDuration = videoRef.current.duration;
+    let isSeekingSync = false;
 
-        if (videoDuration && videoDuration > 0) {
-          const expectedVideoTime = audioTime % videoDuration;
-          if (Math.abs(videoTime - expectedVideoTime) > 0.15) {
-            videoRef.current.currentTime = expectedVideoTime;
-          }
-        }
+    // Rule 1 & 4: Play/Pause state synchronization (Master drives Slave)
+    const handlePlay = () => {
+      if (isPlaying) {
+        audio.muted = isMuted;
+        audio.volume = volume;
+        // Ensure starting alignment
+        audio.currentTime = video.currentTime;
+        audio.play().catch((err) => {
+          console.warn("PerfectSync: Audio play blocked or delayed until interaction: ", err);
+        });
       }
     };
 
+    const handlePause = () => {
+      audio.pause();
+    };
+
+    // Rule 2 & 3: Drift correction and buffering alignment
+    const syncTimeTracker = () => {
+      if (!isPlaying || isSeekingSync) return;
+      const vTime = video.currentTime;
+      const aTime = audio.currentTime;
+      
+      // If we've drifted by more than 0.1s, sync timelines immediately
+      if (Math.abs(aTime - vTime) > 0.1) {
+        audio.currentTime = vTime;
+      }
+    };
+
+    const handleWaiting = () => {
+      // Rule 3: Buffer freeze - Freeze the audio instantly if the video is waiting/buffering
+      audio.pause();
+    };
+
+    const handlePlaying = () => {
+      // Rule 3: Buffer catch-up - Snap the audio to video timestamp and resume play
+      if (isPlaying) {
+        audio.currentTime = video.currentTime;
+        audio.muted = isMuted;
+        audio.volume = volume;
+        audio.play().catch((err) => {
+          console.warn("PerfectSync: Audio play resumed with video: ", err);
+        });
+      }
+    };
+
+    const handleSeeking = () => {
+      isSeekingSync = true;
+      audio.pause();
+    };
+
+    const handleSeeked = () => {
+      audio.currentTime = video.currentTime;
+      isSeekingSync = false;
+      if (isPlaying && !video.paused) {
+        audio.play().catch(() => {});
+      }
+    };
+
+    // Tab visibility recovery handler
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        syncVideoWithAudio();
+        // Enforce play states on wake-up
+        if (isPlaying) {
+          audio.currentTime = video.currentTime;
+          if (video.paused) {
+            video.play().catch(() => {});
+          }
+          if (audio.paused) {
+            audio.play().catch(() => {});
+          }
+        } else {
+          video.pause();
+          audio.pause();
+        }
       }
     };
 
-    const intervalId = setInterval(syncVideoWithAudio, 1000);
+    // Video events
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    video.addEventListener("timeupdate", syncTimeTracker);
+    video.addEventListener("waiting", handleWaiting);
+    video.addEventListener("playing", handlePlaying);
+    video.addEventListener("seeking", handleSeeking);
+    video.addEventListener("seeked", handleSeeked);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
+    // Tight secondary interval check to catch any background or passive drift (every 500ms)
+    const driftCheckInterval = setInterval(syncTimeTracker, 500);
+
     return () => {
-      clearInterval(intervalId);
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      video.removeEventListener("timeupdate", syncTimeTracker);
+      video.removeEventListener("waiting", handleWaiting);
+      video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("seeking", handleSeeking);
+      video.removeEventListener("seeked", handleSeeked);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(driftCheckInterval);
     };
-  }, [hasStarted, isPlaying]);
+  }, [hasStarted, isPlaying, isMuted, volume]);
 
   // Trigger Portrait Spin
   const handleAvatarClick = () => {
@@ -779,8 +936,8 @@ export default function App() {
             for (let i = 0; i < bufferLength; i++) {
               const barHeight = 2; // Accent base plate line
               const gradient = ctx.createLinearGradient(0, height, 0, 0);
-              gradient.addColorStop(0, "rgba(6, 182, 212, 0.4)");
-              gradient.addColorStop(1, "rgba(34, 211, 238, 0.6)");
+              gradient.addColorStop(0, "rgba(99, 102, 241, 0.2)"); // Indigo
+              gradient.addColorStop(1, "rgba(6, 182, 212, 0.4)");  // Cyan
               ctx.fillStyle = gradient;
 
               ctx.beginPath();
@@ -839,8 +996,9 @@ export default function App() {
         if (barHeight < 2) barHeight = 2; // draw constant elegant base plate
 
         const gradient = ctx.createLinearGradient(0, height, 0, 0);
-        gradient.addColorStop(0, "rgba(6, 182, 212, 0.4)");
-        gradient.addColorStop(1, "rgba(34, 211, 238, 1)");
+        gradient.addColorStop(0, "rgba(99, 102, 241, 0.45)");  // Indigo-500
+        gradient.addColorStop(0.5, "rgba(6, 182, 212, 0.85)"); // Cyan-500
+        gradient.addColorStop(1, "rgba(34, 211, 238, 1)");     // Cyan-400
 
         ctx.fillStyle = gradient;
 
@@ -1072,7 +1230,7 @@ export default function App() {
       <div
         ref={cursorRef}
         id="custom-cursor-container"
-        className="fixed top-0 left-0 pointer-events-none z-[9999] select-none will-change-transform"
+        className="fixed top-0 left-0 pointer-events-none z-[20000] select-none will-change-transform"
         style={{
           transform: "translate3d(-100px, -100px, 0) translate(-50%, -50%)",
           display: "none",
@@ -1107,7 +1265,7 @@ export default function App() {
         <div
           id="crosshair-fallback"
           className="relative w-6 h-6 flex items-center justify-center mix-blend-difference"
-          style={{ display: "none" }}
+          style={{ display: "flex" }}
         >
           {/* Centered precision point */}
           <div className="w-[3px] h-[3px] rounded-full bg-white" />
@@ -1135,14 +1293,22 @@ export default function App() {
         />
         <video
           ref={videoRef}
-          className={`absolute min-w-full min-h-full object-cover transition-opacity duration-1000 ${
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full object-cover transition-opacity duration-1000 ${
             isVideoError ? "opacity-0" : "opacity-100"
           }`}
           src="/assets/background.mp4"
           loop
           playsInline
           muted={true}
-          onError={() => {
+          preload="metadata"
+          aria-hidden="true"
+          tabIndex={-1}
+          onError={(e) => {
+            const mediaError = e.currentTarget.error;
+            console.error(
+              "Background video failed to load! Error details:",
+              mediaError ? { code: mediaError.code, message: mediaError.message } : "Unknown media error"
+            );
             console.log(
               "No custom /assets/background.mp4 video found, system utilizing high fidelity cosmic fallback.",
             );
@@ -1174,38 +1340,38 @@ export default function App() {
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 0.8, ease: "easeInOut" }}
-            onClick={startExperience}
             id="start-screen"
-            className="fixed inset-0 w-full h-full z-[10000] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl cursor-pointer select-none text-center px-6"
+            className="fixed inset-0 w-full h-full z-[10000] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl select-none text-center px-6"
           >
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.6 }}
-              className="max-w-md p-10 rounded-2xl border border-white/10 bg-white/[0.02] shadow-2xl space-y-6"
+              className="max-w-md p-10 rounded-2xl border border-stone-900 bg-stone-950/75 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.6),0_0_30px_rgba(34,211,238,0.04)] space-y-6"
             >
-              <div className="w-16 h-16 rounded-full border border-red-500/30 bg-red-500/15 flex items-center justify-center mx-auto text-red-500 animate-pulse">
-                <Volume2 className="w-8 h-8" />
+              <div className="w-16 h-16 rounded-full border border-red-500/15 bg-red-500/5 flex items-center justify-center mx-auto text-red-400/90 shadow-[0_0_15px_rgba(239,68,68,0.05)] animate-pulse">
+                <Volume2 className="w-7 h-7" />
               </div>
 
-              <div className="space-y-2">
-                <h2 className="text-xl tracking-widest text-red-500/90 font-bold uppercase">
+              <div className="space-y-3">
+                <h2 className="text-sm tracking-[0.25em] text-red-400 font-mono font-black uppercase">
                   Epilepsy Warning
                 </h2>
-                <p className="text-sm text-gray-400">
+                <p className="text-[11px] font-mono text-stone-400 leading-relaxed uppercase tracking-widest max-w-[32ch] mx-auto">
                   This website includes looping media, animated space effects,
                   audio visual triggers, and lights.
                 </p>
               </div>
 
-              <div className="h-[1px] bg-white/10 w-full" />
+              <div className="h-[1px] bg-stone-900 w-full" />
 
               <motion.div
-                animate={{ scale: [1, 1.03, 1] }}
-                transition={{ repeat: Infinity, duration: 1.6 }}
-                className="text-white bg-white/10 hover:bg-white/15 border border-white/20 hover:border-white/40 px-6 py-3 rounded-full text-base tracking-widest transition-all duration-300 transform active:scale-95"
+                onClick={startExperience}
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+                className="text-cyan-400 hover:text-cyan-300 font-mono text-xs font-black tracking-[0.2em] bg-cyan-500/5 hover:bg-cyan-500/15 border border-cyan-500/15 hover:border-cyan-400/60 hover:shadow-[0_0_12px_rgba(34,211,238,0.25)] px-6 py-3.5 rounded-full uppercase transition-all duration-300 cursor-pointer active:scale-95"
               >
-                CLICK TO START EXPERIENCE
+                Enter Experience
               </motion.div>
             </motion.div>
           </motion.div>
@@ -1262,7 +1428,9 @@ export default function App() {
                       <div className="w-full max-w-[200px] sm:max-w-[220px] md:w-auto flex items-center justify-center gap-1.5 py-2 px-3.5 rounded-lg border border-white/10 bg-white/[0.03] text-stone-300 font-sans tracking-wide select-none shadow-sm backdrop-blur-sm">
                         <Eye className="w-3.5 h-3.5 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4 text-cyan-400 animate-pulse shrink-0" />
                         <div className="flex items-baseline gap-1.5 leading-none">
-                          <span className="text-[9px] md:text-[9.5px] lg:text-[10px] text-stone-500 uppercase tracking-widest font-black shrink-0">Views:</span>
+                          <span className="text-[9px] md:text-[9.5px] lg:text-[10px] text-stone-500 uppercase tracking-widest font-black shrink-0">
+                            Views:
+                          </span>
                           <span className="font-extrabold text-[#06b6d4] text-xs sm:text-xs md:text-sm lg:text-base">
                             {visitorCount.toLocaleString()}
                           </span>
@@ -1394,7 +1562,10 @@ export default function App() {
                   <DiscordPresenceWidget discordStatus={discordStatus} />
 
                   {/* Recently Played Cache integration */}
-                  <RecentlyPlayedWidget songs={recentlyPlayedSongs} />
+                  <RecentlyPlayedWidget
+                    songs={recentlyPlayedSongs}
+                    topSongs={topPlayedSongs}
+                  />
                 </div>
               </motion.div>
             )}
@@ -1447,10 +1618,16 @@ export default function App() {
                             <strong className="text-white font-mono">
                               duziy
                             </strong>
-                            , an independent creator and developer dedicated to crafting immersive gaming experiences, composing atmospheric audio, and learning something new every single day.
+                            , an independent creator and developer dedicated to
+                            crafting immersive gaming experiences, composing
+                            atmospheric audio, and learning something new every
+                            single day.
                           </p>
                           <p className="max-w-[55ch] md:max-w-[65ch]">
-                            Whether I'm configuring complex server-side systems or design elements, making music, or producing new digital content, I aim to create unique vibes and meaningful connections.
+                            Whether I'm configuring complex server-side systems
+                            or design elements, making music, or producing new
+                            digital content, I aim to create unique vibes and
+                            meaningful connections.
                           </p>
                         </div>
                       </div>
@@ -1670,7 +1847,7 @@ export default function App() {
                           type="text"
                           value={adminUsername}
                           onChange={(e) => setAdminUsername(e.target.value)}
-                          placeholder="duziydev"
+                          placeholder="admin"
                           required
                           autoComplete="off"
                           autoCorrect="off"
@@ -1724,7 +1901,7 @@ export default function App() {
                             Secure Admin Session Active
                           </p>
                           <p className="text-[9.5px] text-stone-400 font-sans mt-0.5">
-                            Logged in as: duziydev
+                            Logged in as: {adminUsername}
                           </p>
                         </div>
                       </div>
@@ -1769,16 +1946,37 @@ export default function App() {
 
                             <div className="border-t border-white/5 pt-2">
                               <p className="text-[10px] font-bold text-amber-400 font-mono tracking-wider uppercase mb-0.5">
-                                ⚠️ Why am I showing as Offline?
+                                ⚠️ Troubleshooting Discord & Spotify Status
                               </p>
                               <p className="text-[10px] text-stone-400 font-sans leading-relaxed">
-                                If you have linked your ID but are still showing
-                                as offline, please verify:
+                                if the status shows offline or you see errors,
+                                review the following:
                               </p>
                               <ul className="list-disc pl-4 text-[10px] text-stone-400 font-sans space-y-1 mt-1 leading-relaxed">
                                 <li>
-                                  Ensure your Discord ID is connected to the status tracker bot on the integration server so their bot can monitor your live
-                                  status.
+                                  <strong className="text-stone-300">
+                                    Register on Lanyard (Important):
+                                  </strong>{" "}
+                                  Lanyard tracks your presence by sharing a
+                                  server with you. You must join the Lanyard
+                                  Discord Server (at{" "}
+                                  <a
+                                    href="https://discord.gg/7B7u2uX"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-cyan-400 hover:underline"
+                                  >
+                                    discord.gg/7B7u2uX
+                                  </a>
+                                  ) to prevent the API from returning a{" "}
+                                  <strong className="text-amber-300">
+                                    404 Error
+                                  </strong>
+                                  .
+                                </li>
+                                <li>
+                                  Ensure your Discord ID is connected to the
+                                  status tracker bot on the integration server.
                                 </li>
                                 <li>
                                   Make sure{" "}
@@ -1811,18 +2009,56 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="flex gap-2.5 pt-1">
-                            <input
-                              type="text"
-                              value={tempDiscordId}
-                              onChange={(e) =>
-                                setTempDiscordId(
-                                  e.target.value.replace(/\D/g, ""),
-                                )
-                              }
-                              placeholder="e.g. 1025531959736860714"
-                              className="flex-1 bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
-                            />
+                          <div className="space-y-3.5 pt-1">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold font-mono tracking-wider text-stone-400 block uppercase">
+                                Discord Snowflake ID (Required for Status Widget)
+                              </label>
+                              <input
+                                type="text"
+                                value={tempDiscordId}
+                                onChange={(e) =>
+                                  setTempDiscordId(
+                                    e.target.value.replace(/\D/g, ""),
+                                  )
+                                }
+                                placeholder="e.g. 1025531959736860714"
+                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold font-mono tracking-wider text-stone-400 block uppercase">
+                                Discord Client ID (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                value={tempDiscordClientId}
+                                onChange={(e) =>
+                                  setTempDiscordClientId(
+                                    e.target.value.replace(/\D/g, ""),
+                                  )
+                                }
+                                placeholder="Enter Discord Client ID (Application ID)"
+                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold font-mono tracking-wider text-stone-400 block uppercase">
+                                Discord Client Secret (Optional)
+                              </label>
+                              <input
+                                type="password"
+                                value={tempDiscordClientSecret}
+                                onChange={(e) =>
+                                  setTempDiscordClientSecret(e.target.value)
+                                }
+                                placeholder="Enter Discord Client Secret"
+                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
+                              />
+                            </div>
+
                             <button
                               onClick={() => {
                                 if (tempDiscordId) {
@@ -1831,12 +2067,18 @@ export default function App() {
                                     "discord_id",
                                     tempDiscordId,
                                   );
-                                  saveDiscordConfigToServer(tempDiscordId);
                                 }
+                                setDiscordClientId(tempDiscordClientId);
+                                setDiscordClientSecret(tempDiscordClientSecret);
+                                saveDiscordConfigToServer(
+                                  tempDiscordId,
+                                  tempDiscordClientId,
+                                  tempDiscordClientSecret,
+                                );
                               }}
-                              className="bg-cyan-500/15 border border-cyan-500/40 hover:bg-cyan-500/25 text-cyan-300 rounded-lg px-4 py-2 text-xs uppercase font-mono tracking-widest font-black transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0"
+                              className="w-full bg-cyan-500/15 border border-cyan-500/40 hover:bg-cyan-500/25 text-cyan-300 rounded-lg py-2.5 text-xs uppercase font-mono tracking-widest font-black transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                             >
-                              Save
+                              Save Settings
                             </button>
                           </div>
 
@@ -1871,39 +2113,39 @@ export default function App() {
           </AnimatePresence>
 
           {/* 5. Sound Volume Media controllers bar */}
-          <div className="glass-panel mt-10 md:fixed md:bottom-6 md:left-6 md:mt-0 px-4 py-2 rounded-full flex items-center gap-3 md:gap-3.5 z-55 pointer-events-auto shadow-xl select-none flex-wrap md:flex-nowrap justify-center">
+          <div className="mt-10 md:fixed md:bottom-6 md:left-6 md:mt-0 px-4.5 py-2.5 rounded-full flex items-center gap-3.5 md:gap-4 z-55 pointer-events-auto bg-stone-950/75 backdrop-blur-md border border-stone-900 hover:border-cyan-500/30 shadow-[0_8px_32px_rgba(0,0,0,0.6),0_0_20px_rgba(34,211,238,0.06)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.7),0_0_30px_rgba(34,211,238,0.15)] select-none flex-wrap md:flex-nowrap justify-center transition-all duration-300 hover:scale-[1.015]">
             {/* Show active indicator (no track names or numbers) */}
-            <div className="flex items-center gap-2 border-r border-white/10 pr-3 shrink-0">
+            <div className="flex items-center gap-2.5 border-r border-stone-800/80 pr-3.5 shrink-0">
               <span
-                className={`w-2 h-2 rounded-full shrink-0 transition-all ${isPlaying ? "bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.6)]" : "bg-stone-500"}`}
+                className={`w-2 h-2 rounded-full shrink-0 transition-all duration-500 border border-black/20 ${isPlaying ? "bg-cyan-400 scale-110 shadow-[0_0_12px_#22d3ee] animate-pulse" : "bg-stone-600 scale-95 shadow-inner"}`}
               />
-              <p className="text-[9px] font-black font-mono tracking-widest text-cyan-400 uppercase leading-none">
+              <p className={`text-[9.5px] font-black font-mono tracking-[0.2em] uppercase leading-none transition-colors duration-300 ${isPlaying ? "text-cyan-400 drop-shadow-[0_0_2px_rgba(34,211,238,0.4)]" : "text-stone-500"}`}>
                 {isPlaying ? "playing" : "paused"}
               </p>
             </div>
 
             {/* Media playback play/pause control */}
-            <div className="flex items-center gap-1 border-r border-white/10 pr-3 shrink-0">
+            <div className="flex items-center gap-1 border-r border-stone-800/80 pr-3.5 shrink-0">
               <button
                 onClick={togglePlay}
-                className="text-cyan-400 hover:text-white cursor-pointer p-1.5 rounded-full bg-white/5 border border-white/10 hover:border-cyan-400/50 hover:bg-cyan-400/10 active:scale-95 transition-all shrink-0"
+                className="text-cyan-400 hover:text-cyan-300 cursor-pointer p-2 rounded-full bg-cyan-500/5 hover:bg-cyan-500/15 border border-cyan-500/15 hover:border-cyan-400/60 hover:shadow-[0_0_12px_rgba(34,211,238,0.25)] active:scale-90 transition-all duration-300 shrink-0 flex items-center justify-center h-8 w-8"
                 title={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? (
                   <Pause className="w-3.5 h-3.5 fill-cyan-400 text-cyan-400" />
                 ) : (
-                  <Play className="w-3.5 h-3.5 fill-cyan-400 text-cyan-400" />
+                  <Play className="w-3.5 h-3.5 fill-cyan-400 text-cyan-400 font-bold ml-0.5" />
                 )}
               </button>
             </div>
 
-            {/* Real-time HTML5 Canvas spectrum wave visualizer */}
-            <div className="flex items-center gap-1 border-r border-white/10 pr-3 shrink-0 h-4 justify-center">
+            {/* Real-time HTML5 Canvas spectrum wave visualizer inside a subtle bezel */}
+            <div className="flex items-center gap-1 border-r border-stone-800/80 pr-3.5 shrink-0 h-8 justify-center bg-stone-900/30 rounded-lg px-2">
               <canvas
                 ref={canvasRef}
                 width={56}
                 height={16}
-                className="w-14 h-4 opacity-90 filter drop-shadow-[0_0_2px_rgba(34,211,238,0.4)]"
+                className="w-14 h-4 opacity-95 filter drop-shadow-[0_0_3px_rgba(34,211,238,0.5)] transition-opacity duration-300"
                 title="Spectrum frequency flow"
               />
             </div>
@@ -1911,18 +2153,18 @@ export default function App() {
             {/* Volume mute toggle */}
             <button
               onClick={toggleMute}
-              className="text-stone-300 hover:text-white cursor-pointer active:scale-90 transition-transform p-1 rounded-full hover:bg-white/10 shrink-0"
+              className="text-cyan-400 hover:text-cyan-300 cursor-pointer p-2 rounded-full bg-cyan-500/5 hover:bg-cyan-500/15 border border-cyan-500/15 hover:border-cyan-400/60 hover:shadow-[0_0_12px_rgba(34,211,238,0.25)] active:scale-90 transition-all duration-300 shrink-0 flex items-center justify-center h-8 w-8"
               title={isMuted ? "Unmute" : "Mute"}
             >
               {isMuted ? (
-                <VolumeX className="w-3.5 h-3.5 text-cyan-400" />
+                <VolumeX className="w-3.5 h-3.5 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.2)]" />
               ) : (
-                <Volume2 className="w-3.5 h-3.5 text-stone-200" />
+                <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
               )}
             </button>
 
             {/* Range slider */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2.5 shrink-0 bg-stone-900/20 px-2 py-1 rounded-lg">
               <input
                 type="range"
                 min={0}
@@ -1932,7 +2174,7 @@ export default function App() {
                 onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                 className="w-12 sm:w-16 volume-slider cursor-pointer outline-none"
               />
-              <span className="text-[9px] font-mono font-bold text-stone-400 tracking-wider w-8 text-right select-none shrink-0">
+              <span className="text-[9.5px] font-mono font-black text-stone-400 tracking-wider w-9 text-right select-none shrink-0 transition-colors duration-300 hover:text-cyan-300">
                 {Math.round(volume * 100)}%
               </span>
             </div>

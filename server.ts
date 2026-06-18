@@ -1,9 +1,36 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import crypto from "crypto";
 import fs from "fs";
+
+// Synchronous debug logging helper to bypass Docker log buffering and capture silent container exits
+const debugLogPath = path.join(process.cwd(), "assets", "startup_debug.log");
+function writeDebugLog(msg: string) {
+  try {
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(debugLogPath, `[${timestamp}] ${msg}\n`, "utf8");
+    console.log(msg);
+  } catch (err: any) {
+    console.error("Failed to write to startup_debug.log:", err.message);
+  }
+}
+
+// Ensure assets folder exists to write files
+try {
+  if (!fs.existsSync(path.join(process.cwd(), "assets"))) {
+    fs.mkdirSync(path.join(process.cwd(), "assets"), { recursive: true });
+  }
+  fs.writeFileSync(
+    debugLogPath,
+    `=== SERVER INITIALIZATION DEBUG LOG (${new Date().toISOString()}) ===\n`,
+    "utf8"
+  );
+  writeDebugLog(`NODE_ENV detected as: "${process.env.NODE_ENV}"`);
+  writeDebugLog(`Process CWD: "${process.cwd()}"`);
+} catch (err: any) {
+  console.error("Critical: Failed to initialize debug log on disk:", err.message);
+}
 
 dotenv.config();
 
@@ -15,27 +42,28 @@ function sha256(val: string): string {
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  writeDebugLog(`startServer() called. Configured PORT is ${PORT}`);
 
   // Support application/json body parsing
   app.use(express.json());
 
-  // Check if mounted assets directory exists (such as from previous nginx structures mapped via docker-compose)
-  const externalAssetsPath = "/usr/share/nginx/html/assets";
+  // Check if mounted assets directory exists
   const localAssetsPath = path.join(process.cwd(), "assets");
+  writeDebugLog(`Checking assets directory path: ${localAssetsPath}`);
 
-  if (fs.existsSync(externalAssetsPath)) {
-    console.log(
-      `[Express Server] Serving assets from external container volume: ${externalAssetsPath}`,
-    );
-    app.use("/assets", express.static(externalAssetsPath));
-  } else if (fs.existsSync(localAssetsPath)) {
-    console.log(
-      `[Express Server] Serving assets from local directory: ${localAssetsPath}`,
-    );
-    app.use("/assets", express.static(localAssetsPath));
+  if (!fs.existsSync(localAssetsPath)) {
+    try {
+      fs.mkdirSync(localAssetsPath, { recursive: true });
+      writeDebugLog(`Created assets directory successfully.`);
+    } catch (err: any) {
+      writeDebugLog(`[ERROR] Failed to create local assets folder: ${err.message}`);
+    }
   }
 
-  // Secure API Admin verification helper using cryptographic hash comparison
+  writeDebugLog(`Registering static path: /assets mapped to ${localAssetsPath}`);
+  app.use("/assets", express.static(localAssetsPath));
+
+  // Secure API Admin verification helper supporting both plaintext and SHA-256 hashes
   function verifyAdmin(username: any, password: any): boolean {
     if (typeof username !== "string" || typeof password !== "string") {
       return false;
@@ -44,27 +72,29 @@ async function startServer() {
     const normUsername = username.trim().toLowerCase();
     const normPassword = password.trim();
 
-    // Default hashes correspond to username: duziydev / password: EAJBN)(*&UDF
-    let expectedUserHash = (process.env.ADMIN_USERNAME_HASH || "").trim();
-    let expectedPassHash = (process.env.ADMIN_PASSWORD_HASH || "").trim();
+    const expectedUserRawOrHash = (process.env.ADMIN_USERNAME_HASH || "").trim();
+    const expectedPassRawOrHash = (process.env.ADMIN_PASSWORD_HASH || "").trim();
 
-    if (!expectedUserHash || expectedUserHash.length !== 64) {
-      expectedUserHash =
-        "01d370f6ec03e7742d5c5fccc6e5529d27ccf4eb207ba308fe327e61049baf11";
-    }
-    if (!expectedPassHash || expectedPassHash.length !== 64) {
-      expectedPassHash =
-        "898deff28174fa0f9fa08cae92166d40e1c10f54c554f05d9ae6ff31fd0dd07d";
+    if (!expectedUserRawOrHash || !expectedPassRawOrHash) {
+      console.warn("[ADMIN WARNING] Administrative authentication is disabled because expected values/hashes are not configured in your environmental variables (.env). Please configure ADMIN_USERNAME_HASH and ADMIN_PASSWORD_HASH.");
+      return false;
     }
 
+    // Check 1: Support direct plain-text credential matching
+    const normExpectedUsername = expectedUserRawOrHash.toLowerCase();
+    if (normUsername === normExpectedUsername && normPassword === expectedPassRawOrHash) {
+      return true;
+    }
+
+    // Check 2: Support SHA-256 hash matching
     const inputUserHash = sha256(normUsername);
     const inputPassHash = sha256(normPassword);
 
     try {
       const bufInputUser = Buffer.from(inputUserHash, "utf8");
-      const bufExpectedUser = Buffer.from(expectedUserHash, "utf8");
+      const bufExpectedUser = Buffer.from(expectedUserRawOrHash, "utf8");
       const bufInputPass = Buffer.from(inputPassHash, "utf8");
-      const bufExpectedPass = Buffer.from(expectedPassHash, "utf8");
+      const bufExpectedPass = Buffer.from(expectedPassRawOrHash, "utf8");
 
       if (
         bufInputUser.length !== bufExpectedUser.length ||
@@ -78,7 +108,7 @@ async function startServer() {
       return uMatch && pMatch;
     } catch {
       return (
-        inputUserHash === expectedUserHash && inputPassHash === expectedPassHash
+        inputUserHash === expectedUserRawOrHash && inputPassHash === expectedPassRawOrHash
       );
     }
   }
@@ -96,31 +126,142 @@ async function startServer() {
     }
   });
 
-  // Find the safest persistent storage directory (either the mounted docker assets volume, or local assets directory, or fallback to current working directory)
-  function getStorageDir(): string {
-    const externalAssetsPath = "/usr/share/nginx/html/assets";
-    const localAssetsPath = path.join(process.cwd(), "assets");
-    if (fs.existsSync(externalAssetsPath)) {
-      return externalAssetsPath;
-    } else if (fs.existsSync(localAssetsPath)) {
-      return localAssetsPath;
+  // Define persistent assets folder at process working directory
+  const storageDir = path.join(process.cwd(), "assets");
+  console.log(
+    `[Express Server] Persistent files storage location resolved to: ${storageDir}`,
+  );
+
+  // Automated assets seeding fallback to prevent blank web pages if host mounts an empty volume!
+  const defaultAssetsDir = path.join(process.cwd(), "default_assets");
+  if (fs.existsSync(defaultAssetsDir) && fs.existsSync(storageDir)) {
+    try {
+      console.log(
+        `[Express Server] Checking for missing default assets in persistent folder: ${storageDir}`,
+      );
+      const defaultFiles = fs.readdirSync(defaultAssetsDir);
+      let copiedCount = 0;
+      for (const item of defaultFiles) {
+        const sourcePath = path.join(defaultAssetsDir, item);
+        const destinationPath = path.join(storageDir, item);
+
+        const stat = fs.statSync(sourcePath);
+        if (stat.isFile()) {
+          if (!fs.existsSync(destinationPath)) {
+            fs.copyFileSync(sourcePath, destinationPath);
+            copiedCount++;
+          }
+        }
+      }
+      if (copiedCount > 0) {
+        console.log(
+          `[Express Server] Auto-seeded ${copiedCount} missing default assets into persistence directory from base image!`,
+        );
+      } else {
+        console.log(
+          `[Express Server] All default assets already verified present in persistent directory.`,
+        );
+      }
+    } catch (err: any) {
+      console.error(
+        `[Express Server] Error during automated asset seeding process: ${err.message}`,
+      );
     }
-    return process.cwd();
   }
 
-  const storageDir = getStorageDir();
-  console.log(`[Express Server] Persistent files storage location resolved to: ${storageDir}`);
+  // Synchronous/Asynchronous Auto-downloader of essential high-quality assets to guarantee working site
+  function isFileEmptyOrMissing(filePath: string): boolean {
+    if (!fs.existsSync(filePath)) return true;
+    try {
+      const stats = fs.statSync(filePath);
+      return stats.size === 0;
+    } catch {
+      return true;
+    }
+  }
+
+  async function ensureEssentialAssets() {
+    const bgVideoPath = path.join(storageDir, "background.mp4");
+    const bgMusicPath = path.join(storageDir, "background_music.mp3");
+
+    // 1. Check and download background.mp4 space loop if empty/missing
+    if (isFileEmptyOrMissing(bgVideoPath)) {
+      console.log("[Express Server] background.mp4 is empty or missing. Auto-downloading high-quality cosmic space background loop...");
+      try {
+        const response = await fetch(
+          "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1611-large.mp4",
+          {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              "Referer": "https://mixkit.co/",
+            },
+          },
+        );
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          if (arrayBuffer) {
+            fs.writeFileSync(bgVideoPath, Buffer.from(arrayBuffer));
+            console.log("[Express Server] Successfully downloaded and saved cosmic space background loop to /assets/background.mp4!");
+          }
+        } else {
+          console.warn(`[Express Server] Failed to fetch background.mp4: HTTP ${response.status}`);
+        }
+      } catch (err: any) {
+        console.error(`[Express Server] Error downloading background.mp4 helper: ${err.message}`);
+      }
+    }
+
+    // 2. Check and download background_music.mp3 space chill lofi track if empty/missing
+    if (isFileEmptyOrMissing(bgMusicPath)) {
+      console.log("[Express Server] background_music.mp3 is empty or missing. Auto-downloading smooth ambient lofi music track...");
+      try {
+        const response = await fetch(
+          "https://raw.githubusercontent.com/AnshumanFauzdar/Lofi-music-vibe/main/music/1.mp3",
+          {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
+          },
+        );
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          if (arrayBuffer) {
+            fs.writeFileSync(bgMusicPath, Buffer.from(arrayBuffer));
+            console.log("[Express Server] Successfully downloaded and saved ambient lofi track to /assets/background_music.mp3!");
+          }
+        } else {
+          console.warn(`[Express Server] Failed to fetch background_music.mp3: HTTP ${response.status}`);
+        }
+      } catch (err: any) {
+        console.error(`[Express Server] Error downloading background_music.mp3 helper: ${err.message}`);
+      }
+    }
+  }
+
+  // Trigger non-blocking downloading process in background on boot
+  ensureEssentialAssets().catch((err) => {
+    console.error("[Express Server] Failed in background asset checking routine:", err);
+  });
 
   const configFilePath = path.join(storageDir, "discord_config.json");
   const visitorFilePath = path.join(storageDir, "visitor_count.json");
   const recentlyPlayedFilePath = path.join(storageDir, "recently_played.json");
+  const topTracksFilePath = path.join(storageDir, "top_tracks.json");
 
-  // Helper for non-blocking asynchronous file writes
-  async function safeWriteFile(filePath: string, data: any) {
+  // Helper for synchronous and reliable file writes (based directly on the visitor count pattern which is proven to work)
+  function safeWriteFile(filePath: string, data: any) {
     try {
-      await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
-    } catch (err) {
-      console.error(`[Express Server] Failed to write file asynchronously: ${filePath}`, err);
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+      console.log(
+        `[Express Server] Successfully saved updated content to persistent file: ${filePath}`,
+      );
+    } catch (err: any) {
+      console.error(
+        `[Express Server] Failed to write file securely: ${filePath}`,
+        err.message,
+      );
     }
   }
 
@@ -134,11 +275,16 @@ async function startServer() {
       fs.writeFileSync(
         visitorFilePath,
         JSON.stringify({ count, fingerprints }, null, 2),
-        "utf8"
+        "utf8",
       );
-      console.log(`[Express Server] Instantly updated visitor_count.json on disk. Count: ${count}, Fingerprints: ${fingerprints.length}`);
+      console.log(
+        `[Express Server] Instantly updated visitor_count.json on disk. Count: ${count}, Fingerprints: ${fingerprints.length}`,
+      );
     } catch (err) {
-      console.error("[Express Server] Failed to write visitor_count.json synchronously:", err);
+      console.error(
+        "[Express Server] Failed to write visitor_count.json synchronously:",
+        err,
+      );
     }
   }
 
@@ -168,59 +314,57 @@ async function startServer() {
           if (allTimeFingerprints.size > totalVisitorCount) {
             totalVisitorCount = allTimeFingerprints.size;
           }
-          console.log(`[Express Server] Loaded initial unique visitor tracking state: count=${totalVisitorCount}, database fingerprints=${allTimeFingerprints.size}`);
+          console.log(
+            `[Express Server] Loaded initial unique visitor tracking state: count=${totalVisitorCount}, database fingerprints=${allTimeFingerprints.size}`,
+          );
         }
       }
     } else {
       saveStateToDiskNow(totalVisitorCount, []);
-      console.log(`[Express Server] Created initial visitor_count.json with default count: ${totalVisitorCount}`);
+      console.log(
+        `[Express Server] Created initial visitor_count.json with default count: ${totalVisitorCount}`,
+      );
     }
   } catch (err) {
-    console.error("[Express Server] Failed to initialize visitor_count.json on startup:", err);
+    console.error(
+      "[Express Server] Failed to initialize visitor_count.json on startup:",
+      err,
+    );
   }
 
   // Loaded recently played list on startup (with dynamic fallbacks)
   let recentlyPlayed: any[] = [];
   if (fs.existsSync(recentlyPlayedFilePath)) {
     try {
-      recentlyPlayed = JSON.parse(fs.readFileSync(recentlyPlayedFilePath, "utf8"));
+      recentlyPlayed = JSON.parse(
+        fs.readFileSync(recentlyPlayedFilePath, "utf8"),
+      );
     } catch (_) {}
   }
 
-  // Pre-seed default tracks if empty to ensure the widget is always fully functional and populated
-  if (!Array.isArray(recentlyPlayed) || recentlyPlayed.length === 0) {
-    recentlyPlayed = [
-      {
-        trackId: "4ptb6vQvH03gA6u03T6HhX",
-        song: "Minecraft",
-        artist: "C418",
-        album: "Minecraft - Volume Alpha",
-        albumArtUrl: "https://i.scdn.co/image/ab67616d0000b273910c2e91244ab9f7fae94e5b",
-        playedAt: Date.now() - 3600000 * 2, // 2h ago
-      },
-      {
-        trackId: "3U4isOI3Y9gIrsxZnb97gB",
-        song: "Sweden",
-        artist: "C418",
-        album: "Minecraft - Volume Alpha",
-        albumArtUrl: "https://i.scdn.co/image/ab67616d0000b273910c2e91244ab9f7fae94e5b",
-        playedAt: Date.now() - 3600000 * 5, // 5h ago
-      },
-      {
-        trackId: "598950S5fPvT9RLg8rE949",
-        song: "Wet Hands",
-        artist: "C418",
-        album: "Minecraft - Volume Alpha",
-        albumArtUrl: "https://i.scdn.co/image/ab67616d0000b273910c2e91244ab9f7fae94e5b",
-        playedAt: Date.now() - 3600000 * 12, // 12h ago
-      }
-    ];
-    safeWriteFile(recentlyPlayedFilePath, recentlyPlayed);
+  // Set default tracks if empty (init to empty array to avoid unwanted placeholder records)
+  if (!Array.isArray(recentlyPlayed)) {
+    recentlyPlayed = [];
+  }
+
+  // Loaded top tracks list on startup (with play-count based metadata)
+  let topTracks: any[] = [];
+  if (fs.existsSync(topTracksFilePath)) {
+    try {
+      topTracks = JSON.parse(fs.readFileSync(topTracksFilePath, "utf8"));
+    } catch (_) {}
+  }
+
+  if (!Array.isArray(topTracks)) {
+    topTracks = [];
   }
 
   // Public endpoint to read visitor count (High speed, read purely from RAM)
   app.get("/api/visitor/count", (req, res) => {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
     res.json({
@@ -233,12 +377,16 @@ async function startServer() {
 
   // Unique visitor hit endpoint with server-side hashing fallback and client fingerprint payload
   app.post("/api/visitor/hit", (req, res) => {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate",
+    );
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
-    
+
     // Safely get IP and User Agent for server-side fallback
-    const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+    const clientIp =
+      req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
     const ipString = Array.isArray(clientIp) ? clientIp[0] : String(clientIp);
     const ip = ipString.split(",")[0].trim();
     const ua = req.headers["user-agent"] || "unknown";
@@ -253,11 +401,11 @@ async function startServer() {
     if (!allTimeFingerprints.has(fingerprint)) {
       allTimeFingerprints.add(fingerprint);
       totalVisitorCount += 1;
-      
+
       // Save synchronously to disk immediately - no delay, no buffers, no overlapping process races, fully reliable!
       saveStateToDiskNow(totalVisitorCount, Array.from(allTimeFingerprints));
     }
-    
+
     res.json({
       count: totalVisitorCount,
       liveConnected: allTimeFingerprints.size,
@@ -271,26 +419,39 @@ async function startServer() {
     res.json(recentlyPlayed);
   });
 
+  // Public endpoint to read real-time computed top played Spotify songs sorted by play frequency
+  app.get("/api/top-tracks", (req, res) => {
+    res.json(topTracks);
+  });
+
   // Public endpoint to read the globally active Discord Snowflake configuration
   app.get("/api/discord-config", (req, res) => {
     try {
+      const defaultDiscordId = process.env.DEFAULT_DISCORD_ID || "1025531959736860714";
+      const defaultClientId = process.env.DISCORD_CLIENT_ID || "";
+      const defaultClientSecret = process.env.DISCORD_CLIENT_SECRET || "";
+
       if (fs.existsSync(configFilePath)) {
         const configData = JSON.parse(fs.readFileSync(configFilePath, "utf8"));
         return res.json({
-          discordId: configData.discordId || "1025531959736860714",
+          discordId: configData.discordId || defaultDiscordId,
+          discordClientId: configData.discordClientId !== undefined ? configData.discordClientId : defaultClientId,
+          discordClientSecret: configData.discordClientSecret !== undefined ? configData.discordClientSecret : defaultClientSecret,
         });
       }
     } catch (err) {
       console.error("Error reading discord_config.json:", err);
     }
     res.json({
-      discordId: "1025531959736860714",
+      discordId: process.env.DEFAULT_DISCORD_ID || "1025531959736860714",
+      discordClientId: process.env.DISCORD_CLIENT_ID || "",
+      discordClientSecret: process.env.DISCORD_CLIENT_SECRET || "",
     });
   });
 
   // Protected endpoint to update the globally active Discord config ID
   app.post("/api/discord-config", (req, res) => {
-    const { username, password, discordId } = req.body;
+    const { username, password, discordId, discordClientId, discordClientSecret } = req.body;
 
     if (!verifyAdmin(username, password)) {
       return res.status(401).json({ error: "Unauthorized update attempt." });
@@ -298,13 +459,15 @@ async function startServer() {
 
     try {
       const updatedConfig = {
-        discordId: (discordId !== undefined ? discordId : "1025531959736860714").trim(),
+        discordId: (discordId !== undefined
+          ? discordId
+          : (process.env.DEFAULT_DISCORD_ID || "1025531959736860714")
+        ).trim(),
+        discordClientId: (discordClientId !== undefined ? discordClientId : "").trim(),
+        discordClientSecret: (discordClientSecret !== undefined ? discordClientSecret : "").trim(),
       };
 
-      safeWriteFile(
-        configFilePath,
-        updatedConfig,
-      );
+      safeWriteFile(configFilePath, updatedConfig);
 
       res.json({
         success: true,
@@ -325,22 +488,50 @@ async function startServer() {
   let lastTrackId: string | null = null;
   async function checkSpotifyPresence() {
     try {
-      let discordId = "1025531959736860714";
+      let discordId = (process.env.DEFAULT_DISCORD_ID || "1025531959736860714").trim();
       if (fs.existsSync(configFilePath)) {
         try {
-          const configData = JSON.parse(fs.readFileSync(configFilePath, "utf8"));
+          const configData = JSON.parse(
+            fs.readFileSync(configFilePath, "utf8"),
+          );
           if (configData.discordId) discordId = configData.discordId.trim();
         } catch (_) {}
       }
 
+      console.log(
+        `[Spotify Tracker] Polling Lanyard for Discord ID: ${discordId}`,
+      );
       const res = await fetch(`https://api.lanyard.rest/v1/users/${discordId}`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        if (res.status === 404) {
+          console.warn(
+            `[Spotify Tracker] Lanyard API returned 404 for Discord ID: ${discordId}. Action required: To enable Lanyard status tracking, please join the Lanyard Discord server at https://discord.gg/7B7u2uX to register your profile.`,
+          );
+        } else {
+          console.warn(
+            `[Spotify Tracker] Lanyard API returned HTTP error: ${res.status}`,
+          );
+        }
+        return;
+      }
       const json: any = await res.json();
       if (json.success && json.data) {
         const d = json.data;
+        const onlineStatus = d.discord_status || "offline";
+        console.log(
+          `[Spotify Tracker] Discord User online status: ${onlineStatus}`,
+        );
+
         if (d.listening_to_spotify && d.spotify) {
           const s = d.spotify;
+          console.log(
+            `[Spotify Tracker] User is LISTENING on Spotify: "${s.song}" by "${s.artist}" (Track ID: ${s.track_id})`,
+          );
+
           if (s.track_id && s.track_id !== lastTrackId) {
+            console.log(
+              `[Spotify Tracker] Track changed from "${lastTrackId}" to "${s.track_id}"`,
+            );
             lastTrackId = s.track_id;
 
             // Check if it's already the most recently added song
@@ -355,18 +546,73 @@ async function startServer() {
                 playedAt: Date.now(),
               };
               recentlyPlayed.unshift(newTrack);
-              // Limit to last 15 songs
-              recentlyPlayed = recentlyPlayed.slice(0, 15);
+              // Limit to last 20 songs as requested
+              recentlyPlayed = recentlyPlayed.slice(0, 20);
               safeWriteFile(recentlyPlayedFilePath, recentlyPlayed);
+
+              // Dynamically adjust track statistics to generate actual personalized Top Tracks list
+              const trackIdx = topTracks.findIndex(
+                (t: any) => t.trackId === s.track_id,
+              );
+              if (trackIdx !== -1) {
+                topTracks[trackIdx].playCount =
+                  (topTracks[trackIdx].playCount || 1) + 1;
+                topTracks[trackIdx].playedAt = Date.now();
+                topTracks[trackIdx].song = s.song;
+                topTracks[trackIdx].artist = s.artist;
+                topTracks[trackIdx].album = s.album;
+                topTracks[trackIdx].albumArtUrl = s.album_art_url;
+                console.log(
+                  `[Spotify Tracker] Incrementing play count for existing top track: "${s.song}" to ${topTracks[trackIdx].playCount}x`,
+                );
+              } else {
+                topTracks.push({
+                  trackId: s.track_id,
+                  song: s.song,
+                  artist: s.artist,
+                  album: s.album,
+                  albumArtUrl: s.album_art_url,
+                  playedAt: Date.now(),
+                  playCount: 1,
+                });
+                console.log(
+                  `[Spotify Tracker] Added brand new top track candidate: "${s.song}" (1x)`,
+                );
+              }
+
+              // Sort by play count weight, then by recency if count matches
+              topTracks.sort((a: any, b: any) => {
+                if (b.playCount !== a.playCount) {
+                  return b.playCount - a.playCount;
+                }
+                return b.playedAt - a.playedAt;
+              });
+
+              // Keep up to 50 items
+              topTracks = topTracks.slice(0, 50);
+              safeWriteFile(topTracksFilePath, topTracks);
+            } else {
+              console.log(
+                `[Spotify Tracker] Track matches current head of Recently Played list, skipping duplicate write.`,
+              );
             }
           }
         } else {
+          console.log(
+            `[Spotify Tracker] User is NOT currently active on Spotify (or status is hidden).`,
+          );
           // If they stop listening, reset so if they play the same track later it triggers again
           lastTrackId = null;
         }
+      } else {
+        console.warn(
+          `[Spotify Tracker] Lanyard API returned success false or missing user data.`,
+        );
       }
-    } catch (err) {
-      // Safe offline fallback
+    } catch (err: any) {
+      console.error(
+        `[Spotify Tracker] Connection or parsing error: ${err.message}`,
+      );
     }
   }
 
@@ -375,24 +621,54 @@ async function startServer() {
   // Initial polling check on startup
   setTimeout(checkSpotifyPresence, 5000);
 
+  writeDebugLog(`Preparing static routing / Vite middleware. NODE_ENV is: "${process.env.NODE_ENV}"`);
   // Serve with Vite in development, static directory in production
   if (process.env.NODE_ENV !== "production") {
+    writeDebugLog("Setting up Vite server middleware (Development Mode)");
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    // Custom index.html handler for development mode to ensure correct transformation and delivery
+    app.get("*all", async (req, res, next) => {
+      // Don't intercept API routes or static assets
+      if (req.path.startsWith("/api") || req.path.startsWith("/assets")) {
+        return next();
+      }
+      try {
+        const indexPath = path.join(process.cwd(), "index.html");
+        writeDebugLog(`[Development] Serving transformed index.html for request "${req.originalUrl || req.url}"`);
+        let html = fs.readFileSync(indexPath, "utf8");
+        html = await vite.transformIndexHtml(req.originalUrl || req.url, html);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      } catch (err: any) {
+        writeDebugLog(`[Development ERROR] Failed to serve index.html: ${err.message}`);
+        next(err);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    writeDebugLog(`Setting up Express static file serving from "${distPath}" (Production Mode)`);
     app.use(express.static(distPath));
-    app.get("*all", (req, res) => {
+    
+    // Support wildcard routing across standard Express engines
+    const serveIndexHTML = (req: express.Request, res: express.Response) => {
       res.sendFile(path.join(distPath, "index.html"));
-    });
+    };
+    app.get("*all", serveIndexHTML);
   }
 
+  writeDebugLog(`Attempting to bind/listen Express app on port ${PORT}...`);
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+    writeDebugLog(`HTTP Server successfully listening on port ${PORT} at host 0.0.0.0!`);
   });
 }
 
-startServer();
+startServer().catch((err: any) => {
+  writeDebugLog(`FATAL: startServer failed with error message: "${err?.message || err}". Stack: ${err?.stack || "No stack"}`);
+  console.error("FATAL: Express server startup failed:", err);
+  process.exit(1);
+});

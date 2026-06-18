@@ -82,7 +82,7 @@ export default function DiscordPresenceWidget({
 
   // Decode Discord Badges based on public_flags
   const publicFlags = rawData?.discord_user?.public_flags || 0;
-  
+
   const getBadges = (flags: number): DiscordBadge[] => {
     const badgesList: DiscordBadge[] = [];
 
@@ -129,7 +129,10 @@ export default function DiscordPresenceWidget({
         name: "HypeSquad Bravery",
         color: "from-purple-500 to-indigo-500 shadow-purple-500/20",
         icon: (
-          <svg className="w-3.5 h-3.5 text-white fill-current" viewBox="0 0 24 24">
+          <svg
+            className="w-3.5 h-3.5 text-white fill-current"
+            viewBox="0 0 24 24"
+          >
             <path d="M12 2L3 7v10l9 5 9-5V7l-9-5zm0 18l-7-3.8V8.2L12 5v15z" />
           </svg>
         ),
@@ -142,7 +145,10 @@ export default function DiscordPresenceWidget({
         name: "HypeSquad Brilliance",
         color: "from-orange-400 to-red-500 shadow-orange-500/20",
         icon: (
-          <svg className="w-3.5 h-3.5 text-white fill-current" viewBox="0 0 24 24">
+          <svg
+            className="w-3.5 h-3.5 text-white fill-current"
+            viewBox="0 0 24 24"
+          >
             <path d="M12 2l9 9-9 9-9-9 9-9zm0 4.2L7.2 12 12 16.8 16.8 12 12 6.2z" />
           </svg>
         ),
@@ -155,7 +161,10 @@ export default function DiscordPresenceWidget({
         name: "HypeSquad Balance",
         color: "from-teal-400 to-cyan-500 shadow-cyan-500/20",
         icon: (
-          <svg className="w-3.5 h-3.5 text-white fill-current" viewBox="0 0 24 24">
+          <svg
+            className="w-3.5 h-3.5 text-white fill-current"
+            viewBox="0 0 24 24"
+          >
             <path d="M12 2L4 9l8 13 8-13-8-7zm0 4l5.3 4.7L12 19.3l-5.3-8.6L12 6z" />
           </svg>
         ),
@@ -204,7 +213,10 @@ export default function DiscordPresenceWidget({
         name: "Active Developer",
         color: "from-sky-400 to-blue-500 shadow-sky-400/25",
         icon: (
-          <svg className="w-3.5 h-3.5 text-white fill-current" viewBox="0 0 24 24">
+          <svg
+            className="w-3.5 h-3.5 text-white fill-current"
+            viewBox="0 0 24 24"
+          >
             <path d="M12 2l8 4.2v9.6L12 22l-8-6.2V6.2L12 2zm0 3l-5 2.6v6.8l5 2.6 5-2.6V7.6L12 5zm0 3.2c1.3 0 2.4 1.1 2.4 2.4s-1.1 2.4-2.4 2.4-2.4-1.1-2.4-2.4 1.1-2.4 2.4-2.4z" />
           </svg>
         ),
@@ -216,7 +228,8 @@ export default function DiscordPresenceWidget({
       badgesList.push({
         id: "nitro",
         name: "Discord Premium Nitro",
-        color: "from-indigo-500 via-purple-500 to-pink-500 shadow-purple-500/20 animate-pulse",
+        color:
+          "from-indigo-500 via-purple-500 to-pink-500 shadow-purple-500/20 animate-pulse",
         icon: <Gem className="w-3.5 h-3.5 text-white" />,
       });
     }
@@ -228,10 +241,22 @@ export default function DiscordPresenceWidget({
 
   // Status colors & labels mapping
   const statusConfig = {
-    online: { color: "bg-[#23a55a]", glow: "shadow-[#23a55a]/50", label: "Online" },
+    online: {
+      color: "bg-[#23a55a]",
+      glow: "shadow-[#23a55a]/50",
+      label: "Online",
+    },
     idle: { color: "bg-[#f0b232]", glow: "shadow-[#f0b232]/50", label: "Idle" },
-    dnd: { color: "bg-[#f23f43]", glow: "shadow-[#f23f43]/50", label: "Do Not Disturb" },
-    offline: { color: "bg-[#80848e]", glow: "shadow-[#80848e]/30", label: "Not Available / May be Offline" },
+    dnd: {
+      color: "bg-[#f23f43]",
+      glow: "shadow-[#f23f43]/50",
+      label: "Do Not Disturb",
+    },
+    offline: {
+      color: "bg-[#80848e]",
+      glow: "shadow-[#80848e]/30",
+      label: "Not Available / May be Offline",
+    },
   };
 
   const statusInfo = statusConfig[discordStatus.status] || statusConfig.offline;
@@ -305,8 +330,12 @@ export default function DiscordPresenceWidget({
 
   // Animated sound visualizer matching Guns.lol styles
   const visualizerBars = Array.from({ length: 12 }).map((_, i) => {
-    const delay = [0.8, 1.2, 0.4, 0.7, 1.5, 0.6, 1.0, 1.3, 0.5, 0.9, 1.4, 0.3][i % 12];
-    const duration = [0.6, 0.8, 1.1, 0.7, 1.3, 0.9, 1.2, 0.8, 1.0, 0.7, 1.4, 0.9][i % 12];
+    const delay = [0.8, 1.2, 0.4, 0.7, 1.5, 0.6, 1.0, 1.3, 0.5, 0.9, 1.4, 0.3][
+      i % 12
+    ];
+    const duration = [
+      0.6, 0.8, 1.1, 0.7, 1.3, 0.9, 1.2, 0.8, 1.0, 0.7, 1.4, 0.9,
+    ][i % 12];
     return (
       <span
         key={i}
@@ -356,8 +385,12 @@ export default function DiscordPresenceWidget({
 
           {/* Active Status Ring (pulsing bottom-right) */}
           <span className="absolute bottom-[-4px] right-[-4px] flex h-5 w-5 pointer-events-auto cursor-default">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusInfo.color} opacity-75`} />
-            <span className={`relative inline-flex rounded-full h-5 w-5 border-2 border-[#09090e] items-center justify-center ${statusInfo.color} ${statusInfo.glow} shadow-md`}>
+            <span
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusInfo.color} opacity-75`}
+            />
+            <span
+              className={`relative inline-flex rounded-full h-5 w-5 border-2 border-[#09090e] items-center justify-center ${statusInfo.color} ${statusInfo.glow} shadow-md`}
+            >
               <span className="w-1 w-1 bg-white/30 rounded-full" />
             </span>
           </span>
@@ -367,7 +400,9 @@ export default function DiscordPresenceWidget({
         <div className="flex-1 text-center sm:text-left min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2.5 justify-center sm:justify-start">
             <span className="text-base sm:text-lg font-black text-stone-100 tracking-tight hover:text-cyan-400 transition-colors cursor-default">
-              {rawData?.discord_user?.global_name || discordStatus.tag || "loading"}
+              {rawData?.discord_user?.global_name ||
+                discordStatus.tag ||
+                "loading"}
             </span>
             <span className="text-xs sm:text-sm text-stone-400 font-mono tracking-tight self-center">
               @{discordStatus.tag || "duziy"}
@@ -377,7 +412,10 @@ export default function DiscordPresenceWidget({
           {/* Guns.lol style profile status tag lines */}
           <p className="text-xs text-stone-300 font-sans tracking-wide mt-1 h-3.5 flex items-center justify-center sm:justify-start gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-stone-500 inline-block shrink-0" />
-            Status: <span className="font-semibold text-stone-200 capitalize">{statusInfo.label}</span>
+            Status:{" "}
+            <span className="font-semibold text-stone-200 capitalize">
+              {statusInfo.label}
+            </span>
           </p>
 
           {/* Dynamic Badge Showcase Tray with clean custom modern CSS Tooltips on hover */}
@@ -390,10 +428,12 @@ export default function DiscordPresenceWidget({
                   onMouseEnter={() => setIsHovered(badge.id)}
                   onMouseLeave={() => setIsHovered(null)}
                 >
-                  <div className={`p-1.5 rounded-md bg-gradient-to-tr ${badge.color} border border-white/5 cursor-help hover:scale-110 active:scale-95 transition-all duration-200 shadow-sm flex items-center justify-center w-7 h-7`}>
+                  <div
+                    className={`p-1.5 rounded-md bg-gradient-to-tr ${badge.color} border border-white/5 cursor-help hover:scale-110 active:scale-95 transition-all duration-200 shadow-sm flex items-center justify-center w-7 h-7`}
+                  >
                     {badge.icon}
                   </div>
-                  
+
                   {/* Glass Tooltip */}
                   <AnimatePresence>
                     {isHovered === badge.id && (
@@ -422,7 +462,9 @@ export default function DiscordPresenceWidget({
             <Sparkles className="w-4.5 h-4.5" />
           </span>
           <div className="flex items-center gap-1.5 pl-5 flex-1 min-w-0">
-            <span className="italic select-all break-words">"{discordStatus.customStatus}"</span>
+            <span className="italic select-all break-words">
+              "{discordStatus.customStatus}"
+            </span>
           </div>
         </div>
       )}
@@ -512,19 +554,34 @@ export default function DiscordPresenceWidget({
             {/* Realistic Mock/Decorative interactive Music Navigation Deck to mirror Guns.lol premium vibes */}
             <div className="flex items-center justify-between bg-white/[0.01] border border-white/5 rounded-lg px-3 py-2 text-stone-400">
               <div className="flex items-center gap-4">
-                <button className="hover:text-emerald-400 transition-colors" title="Shuffle Mode">
+                <button
+                  className="hover:text-emerald-400 transition-colors"
+                  title="Shuffle Mode"
+                >
                   <Shuffle className="w-3.5 h-3.5 opacity-60 hover:opacity-100" />
                 </button>
-                <button className="hover:text-amber-500 transition-colors" title="Previous Track">
+                <button
+                  className="hover:text-amber-500 transition-colors"
+                  title="Previous Track"
+                >
                   <SkipBack className="w-3.5 h-3.5" />
                 </button>
-                <button className="p-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:scale-105 transition-all duration-200" title="Song Status: Streaming">
+                <button
+                  className="p-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:scale-105 transition-all duration-200"
+                  title="Song Status: Streaming"
+                >
                   <Pause className="w-3 h-3 fill-current" />
                 </button>
-                <button className="hover:text-amber-500 transition-colors" title="Fast Forward">
+                <button
+                  className="hover:text-amber-500 transition-colors"
+                  title="Fast Forward"
+                >
                   <SkipForward className="w-3.5 h-3.5" />
                 </button>
-                <button className="hover:text-emerald-400 transition-colors" title="Repeat Single">
+                <button
+                  className="hover:text-emerald-400 transition-colors"
+                  title="Repeat Single"
+                >
                   <Repeat className="w-3.5 h-3.5 opacity-60 hover:opacity-100" />
                 </button>
               </div>
@@ -674,7 +731,8 @@ export default function DiscordPresenceWidget({
                 Currently Quieter Than Space
               </span>
               <span className="text-xs text-stone-400 mt-2.5 max-w-[340px] leading-relaxed font-sans">
-                Spotify flow is inactive and no active rich presence logs are broadcasted from Discord right now.
+                Spotify flow is inactive and no active rich presence logs are
+                broadcasted from Discord right now.
               </span>
             </div>
           </motion.div>
