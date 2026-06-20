@@ -119,3 +119,9 @@ For internet-facing servers, proxy requests through Nginx and secure your domain
    sudo systemctl reload nginx
    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
    ```
+
+<img width="1908" height="881" alt="screencapture-duziy-xyz-2026-06-20-15_10_03" src="https://github.com/user-attachments/assets/3f2fd0a6-fb16-4781-8d50-045be6f0034f" />
+<img width="1908" height="1628" alt="screencapture-duziy-xyz-2026-06-20-15_10_46" src="https://github.com/user-attachments/assets/082841c2-4fa8-48f5-be57-8d5add4f1437" />
+<img width="1908" height="881" alt="screencapture-duziy-xyz-about-2026-06-20-15_11_10" src="https://github.com/user-attachments/assets/4979bea8-21ba-4a46-a1d2-d00f69dba445" />
+<img width="1908" height="881" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_24" src="https://github.com/user-attachments/assets/19c9fcd7-5e33-4e3d-b58a-c6188529155f" />
+<img width="1908" height="922" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_44" src="https://github.com/user-attachments/assets/3ee897d2-cdcb-44b0-8e05-d9616f621910" />
