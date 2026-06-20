@@ -12,25 +12,31 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "cors": "^2.8.6",
+    "dompurify": "^3.4.11",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "dotenv": "^17.4.2"
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
-    "@vitejs/plugin-react": "^6.0.2",
-    "lucide-react": "^1.17.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "motion": "^12.40.0",
+    "@types/cors": "^2.8.19",
+    "@types/dompurify": "^3.0.5",
+    "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
     "esbuild": "^0.28.0",
+    "lucide-react": "^1.17.0",
+    "motion": "^12.40.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "tailwindcss": "^4.3.0",
     "tsx": "^4.22.4",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "@types/express": "^5.0.6"
+    "vite": "^8.0.16"
   },
   "allowScripts": {
     "protobufjs@7.6.2": true,

@@ -17,5 +17,7 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true,
+    "strict": true,
+    "noImplicitAny": true
   },
 }

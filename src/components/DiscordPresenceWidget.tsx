@@ -24,18 +24,13 @@ import {
   HelpCircle,
   Gem,
 } from "lucide-react";
+import { DiscordStatus, DiscordActivity } from "../types";
 
 // --- Types ---
 interface DiscordPresenceWidgetProps {
-  discordStatus: {
-    status: "online" | "idle" | "dnd" | "offline";
-    customStatus?: string;
-    game?: string;
-    avatar?: string;
-    tag?: string;
-    raw?: any;
-  } | null;
+  discordStatus: DiscordStatus | null;
 }
+
 
 // --- Discord Badge Resolver Helper ---
 interface DiscordBadge {
@@ -282,9 +277,9 @@ export default function DiscordPresenceWidget({
   }
 
   // 2. Playable / Code Activity Extraction
-  const activityList = rawData?.activities || [];
+  const activityList = (rawData as any)?.activities || [];
   const activeApp = activityList.find(
-    (act: any) => act.type === 0 && act.id !== "spotify",
+    (act: DiscordActivity) => act.type === 0 && act.id !== "spotify",
   );
 
   let appElapsedStr = "";
@@ -301,10 +296,11 @@ export default function DiscordPresenceWidget({
   }
 
   // Discord asset resolution
-  const getAppAssetUrl = (app: any) => {
+  const getAppAssetUrl = (app: DiscordActivity | null) => {
     if (!app || !app.assets || !app.assets.large_image) return null;
     const { application_id, assets } = app;
     const largeImage = assets.large_image;
+    if (!largeImage) return null;
 
     if (largeImage.startsWith("mp:external/")) {
       const match = largeImage.match(/https\/(.*)/);
@@ -313,10 +309,11 @@ export default function DiscordPresenceWidget({
     return `https://cdn.discordapp.com/app-assets/${application_id}/${largeImage}.png`;
   };
 
-  const getSmallAppAssetUrl = (app: any) => {
+  const getSmallAppAssetUrl = (app: DiscordActivity | null) => {
     if (!app || !app.assets || !app.assets.small_image) return null;
     const { application_id, assets } = app;
     const smallImage = assets.small_image;
+    if (!smallImage) return null;
 
     if (smallImage.startsWith("mp:external/")) {
       const match = smallImage.match(/https\/(.*)/);

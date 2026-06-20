@@ -2,7 +2,10 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import crypto from "crypto";
-import fs from "fs";
+import fs, { promises as fsPromises } from "fs";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 // Synchronous debug logging helper to bypass Docker log buffering and capture silent container exits
 const debugLogPath = path.join(process.cwd(), "assets", "startup_debug.log");
@@ -43,6 +46,36 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   writeDebugLog(`startServer() called. Configured PORT is ${PORT}`);
+
+  // Enable CORS
+  app.use(cors({
+    origin: true,
+    credentials: true,
+  }));
+
+  // Enable Helmet for robust HTTP security headers while allowing preview iframe integrations
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  // Define Rate Limiters (5 requests/minute for authentication endpoints, 100 requests/minute for visitor)
+  const authLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 5,
+    message: { error: "Too many authentication requests. Please try again after 1 minute." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: false,
+  });
+
+  const visitorLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100,
+    message: { error: "Too many transaction requests. Please slow down." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 
   // Support application/json body parsing
   app.use(express.json());
@@ -114,7 +147,7 @@ async function startServer() {
   }
 
   // Secure API Admin verification route
-  app.post("/api/admin/auth", (req, res) => {
+  app.post("/api/admin/auth", authLimiter, (req, res) => {
     let { username, password } = req.body;
     if (verifyAdmin(username, password)) {
       res.json({ authenticated: true });
@@ -187,28 +220,46 @@ async function startServer() {
     // 1. Check and download background.mp4 space loop if empty/missing
     if (isFileEmptyOrMissing(bgVideoPath)) {
       console.log("[Express Server] background.mp4 is empty or missing. Auto-downloading high-quality cosmic space background loop...");
-      try {
-        const response = await fetch(
-          "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1611-large.mp4",
-          {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-              "Referer": "https://mixkit.co/",
+      
+      const candidateUrls = [
+        "https://raw.githubusercontent.com/yuribeiro/space-travel/master/src/assets/video.mp4",
+        "https://github.com/scotthsmith/Space-Landing/raw/master/space.mp4",
+        "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1611-large.mp4"
+      ];
+
+      let downloadedSuccessfully = false;
+
+      for (const videoUrl of candidateUrls) {
+        try {
+          console.log(`[Express Server] Attempting to download background.mp4 from: ${videoUrl}`);
+          const response = await fetch(
+            videoUrl,
+            {
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://github.com/scotthsmith/Space-Landing",
+              },
             },
-          },
-        );
-        if (response.ok) {
-          const arrayBuffer = await response.arrayBuffer();
-          if (arrayBuffer) {
-            fs.writeFileSync(bgVideoPath, Buffer.from(arrayBuffer));
-            console.log("[Express Server] Successfully downloaded and saved cosmic space background loop to /assets/background.mp4!");
+          );
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            if (arrayBuffer && arrayBuffer.byteLength > 1000) { // ensure we actually got a real video and not a tiny placeholder/error text
+              await fsPromises.writeFile(bgVideoPath, Buffer.from(arrayBuffer));
+              console.log(`[Express Server] Successfully downloaded and saved cosmic space background loop from ${videoUrl}!`);
+              downloadedSuccessfully = true;
+              break;
+            }
+          } else {
+            console.warn(`[Express Server] Failed download from ${videoUrl}: HTTP ${response.status}`);
           }
-        } else {
-          console.warn(`[Express Server] Failed to fetch background.mp4: HTTP ${response.status}`);
+        } catch (err: any) {
+          console.error(`[Express Server] Error attempting to download from ${videoUrl}: ${err.message}`);
         }
-      } catch (err: any) {
-        console.error(`[Express Server] Error downloading background.mp4 helper: ${err.message}`);
+      }
+
+      if (!downloadedSuccessfully) {
+        console.error("[Express Server] All background.mp4 download candidates failed! Visual loop might lack ambient space motion until setup.");
       }
     }
 
@@ -228,7 +279,7 @@ async function startServer() {
         if (response.ok) {
           const arrayBuffer = await response.arrayBuffer();
           if (arrayBuffer) {
-            fs.writeFileSync(bgMusicPath, Buffer.from(arrayBuffer));
+            await fsPromises.writeFile(bgMusicPath, Buffer.from(arrayBuffer));
             console.log("[Express Server] Successfully downloaded and saved ambient lofi track to /assets/background_music.mp3!");
           }
         } else {
@@ -250,10 +301,34 @@ async function startServer() {
   const recentlyPlayedFilePath = path.join(storageDir, "recently_played.json");
   const topTracksFilePath = path.join(storageDir, "top_tracks.json");
 
-  // Helper for synchronous and reliable file writes (based directly on the visitor count pattern which is proven to work)
-  function safeWriteFile(filePath: string, data: any) {
+  // In-Memory Fast Cache of globally active Discord configuration
+  const cachedDiscordConfig = {
+    discordId: (process.env.DEFAULT_DISCORD_ID || "1025531959736860714").trim(),
+    discordClientId: (process.env.DISCORD_CLIENT_ID || "").trim(),
+    discordClientSecret: (process.env.DISCORD_CLIENT_SECRET || "").trim(),
+  };
+
+  try {
+    if (fs.existsSync(configFilePath)) {
+      const configData = JSON.parse(fs.readFileSync(configFilePath, "utf8"));
+      if (configData.discordId) {
+        cachedDiscordConfig.discordId = configData.discordId.trim();
+      }
+      if (configData.discordClientId !== undefined) {
+        cachedDiscordConfig.discordClientId = configData.discordClientId.trim();
+      }
+      if (configData.discordClientSecret !== undefined) {
+        cachedDiscordConfig.discordClientSecret = configData.discordClientSecret.trim();
+      }
+    }
+  } catch (err) {
+    console.error("[Express Server] Failed to load initial discord_config.json on startup:", err);
+  }
+
+  // Helper for asynchronous and reliable file writes (based directly on the visitor count pattern which is proven to work)
+  async function safeWriteFile(filePath: string, data: any) {
     try {
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+      await fsPromises.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
       console.log(
         `[Express Server] Successfully saved updated content to persistent file: ${filePath}`,
       );
@@ -269,10 +344,10 @@ async function startServer() {
   let totalVisitorCount = 0;
   const allTimeFingerprints = new Set<string>();
 
-  // Helper to instantly and synchronously persist the exact count and fingerprints list to disk
-  function saveStateToDiskNow(count: number, fingerprints: string[]) {
+  // Helper to instantly and asynchronously persist the exact count and fingerprints list to disk
+  async function saveStateToDiskNow(count: number, fingerprints: string[]) {
     try {
-      fs.writeFileSync(
+      await fsPromises.writeFile(
         visitorFilePath,
         JSON.stringify({ count, fingerprints }, null, 2),
         "utf8",
@@ -282,7 +357,7 @@ async function startServer() {
       );
     } catch (err) {
       console.error(
-        "[Express Server] Failed to write visitor_count.json synchronously:",
+        "[Express Server] Failed to write visitor_count.json asynchronously:",
         err,
       );
     }
@@ -376,7 +451,7 @@ async function startServer() {
   });
 
   // Unique visitor hit endpoint with server-side hashing fallback and client fingerprint payload
-  app.post("/api/visitor/hit", (req, res) => {
+  app.post("/api/visitor/hit", visitorLimiter, (req, res) => {
     res.setHeader(
       "Cache-Control",
       "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -426,31 +501,15 @@ async function startServer() {
 
   // Public endpoint to read the globally active Discord Snowflake configuration
   app.get("/api/discord-config", (req, res) => {
-    try {
-      const defaultDiscordId = process.env.DEFAULT_DISCORD_ID || "1025531959736860714";
-      const defaultClientId = process.env.DISCORD_CLIENT_ID || "";
-      const defaultClientSecret = process.env.DISCORD_CLIENT_SECRET || "";
-
-      if (fs.existsSync(configFilePath)) {
-        const configData = JSON.parse(fs.readFileSync(configFilePath, "utf8"));
-        return res.json({
-          discordId: configData.discordId || defaultDiscordId,
-          discordClientId: configData.discordClientId !== undefined ? configData.discordClientId : defaultClientId,
-          discordClientSecret: configData.discordClientSecret !== undefined ? configData.discordClientSecret : defaultClientSecret,
-        });
-      }
-    } catch (err) {
-      console.error("Error reading discord_config.json:", err);
-    }
     res.json({
-      discordId: process.env.DEFAULT_DISCORD_ID || "1025531959736860714",
-      discordClientId: process.env.DISCORD_CLIENT_ID || "",
-      discordClientSecret: process.env.DISCORD_CLIENT_SECRET || "",
+      discordId: cachedDiscordConfig.discordId,
+      discordClientId: cachedDiscordConfig.discordClientId,
+      discordClientSecret: cachedDiscordConfig.discordClientSecret,
     });
   });
 
   // Protected endpoint to update the globally active Discord config ID
-  app.post("/api/discord-config", (req, res) => {
+  app.post("/api/discord-config", authLimiter, async (req, res) => {
     const { username, password, discordId, discordClientId, discordClientSecret } = req.body;
 
     if (!verifyAdmin(username, password)) {
@@ -467,7 +526,12 @@ async function startServer() {
         discordClientSecret: (discordClientSecret !== undefined ? discordClientSecret : "").trim(),
       };
 
-      safeWriteFile(configFilePath, updatedConfig);
+      // Update the memory cache for instant access without blocking disk queries
+      cachedDiscordConfig.discordId = updatedConfig.discordId;
+      cachedDiscordConfig.discordClientId = updatedConfig.discordClientId;
+      cachedDiscordConfig.discordClientSecret = updatedConfig.discordClientSecret;
+
+      await safeWriteFile(configFilePath, updatedConfig);
 
       res.json({
         success: true,
@@ -488,15 +552,7 @@ async function startServer() {
   let lastTrackId: string | null = null;
   async function checkSpotifyPresence() {
     try {
-      let discordId = (process.env.DEFAULT_DISCORD_ID || "1025531959736860714").trim();
-      if (fs.existsSync(configFilePath)) {
-        try {
-          const configData = JSON.parse(
-            fs.readFileSync(configFilePath, "utf8"),
-          );
-          if (configData.discordId) discordId = configData.discordId.trim();
-        } catch (_) {}
-      }
+      const discordId = cachedDiscordConfig.discordId;
 
       console.log(
         `[Spotify Tracker] Polling Lanyard for Discord ID: ${discordId}`,
@@ -641,7 +697,7 @@ async function startServer() {
       try {
         const indexPath = path.join(process.cwd(), "index.html");
         writeDebugLog(`[Development] Serving transformed index.html for request "${req.originalUrl || req.url}"`);
-        let html = fs.readFileSync(indexPath, "utf8");
+        let html = await fsPromises.readFile(indexPath, "utf8");
         html = await vite.transformIndexHtml(req.originalUrl || req.url, html);
         res.status(200).set({ "Content-Type": "text/html" }).end(html);
       } catch (err: any) {

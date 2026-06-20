@@ -1,8 +1,21 @@
 import { useState, useEffect, useRef, SVGProps } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import DOMPurify from "dompurify";
 import DiscordPresenceWidget from "./components/DiscordPresenceWidget";
 import RecentlyPlayedWidget from "./components/RecentlyPlayedWidget";
+import ProjectsTab from "./components/pages/ProjectsTab";
+import GuestbookTab from "./components/pages/GuestbookTab";
+import AdminTab from "./components/pages/AdminTab";
 import { getFingerprint } from "./utils/visitor";
+import { Track, DiscordStatus, DiscordActivity } from "./types";
+import {
+  glowColors,
+  avatarGlowColors,
+  bioMessages,
+  socialLinks,
+  expertiseSkills,
+  projectsList,
+} from "./data/bioData";
 import {
   Tv,
   AudioLines,
@@ -35,107 +48,14 @@ import {
 // Track if current tab/load has already successfully recorded a visitor hit
 let isHitLoggedThisLoad = false;
 
-// Custom SVG components for brand icons removed in newer versions of lucide-react
-const Youtube = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25a29 29 0 0 0-.46-5.33z" />
-    <polygon
-      points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"
-      fill="currentColor"
-    />
-  </svg>
-);
-
-const Twitch = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M21 2H3v16h5v4l4-4h5l4-4V2zm-10 9H9V6h2v5zm4 0h-2V6h2v5z" />
-  </svg>
-);
-
-const Instagram = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-  </svg>
-);
-
-const Twitter = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
-  </svg>
-);
-
-const Github = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-  </svg>
-);
-
-// Social Platforms Data
-interface SocialLink {
-  id: string;
-  name: string;
-  url: string;
-  icon: any; // Lucide component reference
-  color: string;
-  category: "media" | "streaming" | "gaming" | "social" | "other";
-  iconSlug?: string;
-}
-
-// Inline brand icon renderer utilizing Simple Icons SVGs for responsive size & color
+// Inline brand icon renderer utilizing Simple Icons SVGs for responsive size & color with XSS sanitization
 function SvgBrandIcon({
   slug,
   fallback: Fallback,
   className,
 }: {
   slug: string;
-  fallback: any;
+  fallback: React.ComponentType<{ className?: string }>;
   className?: string;
 }) {
   const [svgContent, setSvgContent] = useState<string | null>(null);
@@ -154,7 +74,12 @@ function SvgBrandIcon({
         const cleaned = text
           .replace(/<title>.*?<\/title>/, "")
           .replace(/<svg /, '<svg class="w-full h-full" fill="currentColor" ');
-        setSvgContent(cleaned);
+        
+        // Secure sanitization to completely eliminate XSS vectors
+        const sanitized = DOMPurify.sanitize(cleaned, {
+          USE_PROFILES: { svg: true },
+        });
+        setSvgContent(sanitized);
       })
       .catch((err) => {
         if (!active) return;
@@ -182,41 +107,6 @@ function SvgBrandIcon({
   );
 }
 
-// Brand hover-driven ambient backgrounds for main card
-const glowColors: Record<string, string> = {
-  YouTube: "shadow-[0_20px_50px_rgba(255,0,0,0.18)] border-red-500/25",
-  Kick: "shadow-[0_20px_50px_rgba(83,252,24,0.18)] border-emerald-400/25",
-  Twitch: "shadow-[0_20px_50px_rgba(145,70,255,0.18)] border-indigo-400/25",
-  TikTok: "shadow-[0_20px_50px_rgba(1,242,255,0.18)] border-cyan-400/25",
-  Instagram: "shadow-[0_20px_50px_rgba(225,48,108,0.18)] border-pink-500/25",
-  "Twitter / X":
-    "shadow-[0_20px_50px_rgba(255,255,255,0.12)] border-stone-400/25",
-  GitHub: "shadow-[0_20px_50px_rgba(255,255,255,0.12)] border-stone-400/25",
-  SoundCloud: "shadow-[0_20px_50px_rgba(255,85,0,0.18)] border-orange-500/25",
-  Roblox: "shadow-[0_20px_50px_rgba(255,0,0,0.18)] border-red-500/25",
-  Reddit: "shadow-[0_20px_50px_rgba(255,69,0,0.18)] border-orange-600/25",
-  "NameMC (Skins)":
-    "shadow-[0_20px_50px_rgba(83,252,24,0.18)] border-emerald-400/25",
-  Steam: "shadow-[0_20px_50px_rgba(0,173,238,0.18)] border-sky-400/25",
-  Telegram: "shadow-[0_20px_50px_rgba(36,161,222,0.18)] border-sky-500/25",
-};
-
-// Brand hover-driven ambient backdrop glows for avatar orbit
-const avatarGlowColors: Record<string, string> = {
-  YouTube: "bg-red-500/20",
-  Kick: "bg-emerald-400/20",
-  Twitch: "bg-indigo-400/20",
-  TikTok: "bg-cyan-400/20",
-  Instagram: "bg-pink-500/20",
-  "Twitter / X": "bg-stone-300/15",
-  GitHub: "bg-stone-300/15",
-  SoundCloud: "bg-orange-500/20",
-  Roblox: "bg-red-500/20",
-  Reddit: "bg-orange-600/20",
-  "NameMC (Skins)": "bg-emerald-400/20",
-  Steam: "bg-sky-400/20",
-  Telegram: "bg-sky-500/20",
-};
 
 export default function App() {
   // Navigation & Interactive States
@@ -329,14 +219,7 @@ export default function App() {
   const [tempDiscordClientId, setTempDiscordClientId] = useState("");
   const [tempDiscordClientSecret, setTempDiscordClientSecret] = useState("");
 
-  const [discordStatus, setDiscordStatus] = useState<{
-    status: "online" | "idle" | "dnd" | "offline";
-    customStatus?: string;
-    game?: string;
-    avatar?: string;
-    tag?: string;
-    raw?: any;
-  } | null>(null);
+  const [discordStatus, setDiscordStatus] = useState<DiscordStatus | null>(null);
   const [isEditingDiscordId, setIsEditingDiscordId] = useState(false);
   const [tempDiscordId, setTempDiscordId] = useState(discordId);
   const [discordAvatarError, setDiscordAvatarError] = useState(false);
@@ -347,8 +230,8 @@ export default function App() {
   }, [discordId]);
 
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
-  const [recentlyPlayedSongs, setRecentlyPlayedSongs] = useState<any[]>([]);
-  const [topPlayedSongs, setTopPlayedSongs] = useState<any[]>([]);
+  const [recentlyPlayedSongs, setRecentlyPlayedSongs] = useState<Track[]>([]);
+  const [topPlayedSongs, setTopPlayedSongs] = useState<Track[]>([]);
   const [saveStatus, setSaveStatus] = useState("");
 
   // Load configuration, visitor stats and recently played history on mount
@@ -519,8 +402,7 @@ export default function App() {
     }
   };
 
-  // Typewriter bio states
-  const bioMessages = ["Just some guy on the internet!", "Just live a little!"];
+  // Typewriter bio states (imported from bioData)
   const [bioText, setBioText] = useState("");
   const [messageIndex, setMessageIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
@@ -1091,127 +973,6 @@ export default function App() {
     const interval = setInterval(fetchStatus, 15000); // Live sync updates every 15s
     return () => clearInterval(interval);
   }, [discordId]);
-
-  // List of Social links from paste bin
-  const socialLinks: SocialLink[] = [
-    {
-      id: "youtube",
-      name: "YouTube",
-      url: "https://youtube.com/@duziy",
-      icon: Youtube,
-      iconSlug: "youtube",
-      color: "hover:text-[#FF0000]",
-      category: "media",
-    },
-    {
-      id: "kick",
-      name: "Kick",
-      url: "https://kick.com/duziy",
-      icon: Tv,
-      iconSlug: "kick",
-      color: "hover:text-[#53FC18]",
-      category: "streaming",
-    },
-    {
-      id: "twitch",
-      name: "Twitch",
-      url: "https://twitch.tv/realduziy",
-      icon: Twitch,
-      iconSlug: "twitch",
-      color: "hover:text-[#9146FF]",
-      category: "streaming",
-    },
-    {
-      id: "tiktok",
-      name: "TikTok",
-      url: "https://tiktok.com/@duziy",
-      icon: Clapperboard,
-      iconSlug: "tiktok",
-      color: "hover:text-[#01F2FF]",
-      category: "media",
-    },
-    {
-      id: "instagram",
-      name: "Instagram",
-      url: "https://instagram.com/realduziy/",
-      icon: Instagram,
-      iconSlug: "instagram",
-      color: "hover:text-[#E1306C]",
-      category: "social",
-    },
-    {
-      id: "twitter",
-      name: "Twitter / X",
-      url: "https://x.com/realduziy",
-      icon: Twitter,
-      iconSlug: "x",
-      color: "hover:text-stone-100",
-      category: "social",
-    },
-    {
-      id: "github",
-      name: "GitHub",
-      url: "https://github.com/realduziy",
-      icon: Github,
-      iconSlug: "github",
-      color: "hover:text-stone-300",
-      category: "gaming",
-    },
-    {
-      id: "soundcloud",
-      name: "SoundCloud",
-      url: "https://soundcloud.com/duziy",
-      icon: AudioLines,
-      iconSlug: "soundcloud",
-      color: "hover:text-[#FF5500]",
-      category: "media",
-    },
-    {
-      id: "roblox",
-      name: "Roblox",
-      url: "https://roblox.com/users/1306548829/profile",
-      icon: Gamepad,
-      iconSlug: "roblox",
-      color: "hover:text-[#FF0000]",
-      category: "gaming",
-    },
-    {
-      id: "reddit",
-      name: "Reddit",
-      url: "https://reddit.com/user/_duziy_/",
-      icon: MessageCircle,
-      iconSlug: "reddit",
-      color: "hover:text-[#FF4500]",
-      category: "social",
-    },
-    {
-      id: "namemc",
-      name: "NameMC (Skins)",
-      url: "https://namemc.com/profile/duziy.1",
-      icon: Box,
-      iconSlug: "namemc",
-      color: "hover:text-[#53FC18]",
-      category: "gaming",
-    },
-    {
-      id: "steam",
-      name: "Steam",
-      url: "https://steamcommunity.com/id/duziy",
-      icon: Gamepad2,
-      iconSlug: "steam",
-      color: "hover:text-[#00ADEE]",
-      category: "gaming",
-    },
-    {
-      id: "telegram",
-      name: "Telegram",
-      url: "https://t.me/duziy",
-      icon: Send,
-      iconSlug: "telegram",
-      color: "hover:text-[#24A1DE]",
-      category: "social",
-    },
-  ];
 
   // Computed active properties using active Lanyard dynamic state
   const currentAvatarUrl =
@@ -1784,330 +1545,28 @@ export default function App() {
                 {/* Ambient Card Background Glow Aura */}
                 <div className="absolute -inset-4 rounded-[2.5rem] blur-2xl opacity-20 bg-cyan-400/10 transition-all duration-500 pointer-events-none" />
 
-                <div className="glass-panel w-full p-8 rounded-2xl flex flex-col gap-6 relative shadow-[0_25px_60px_rgba(34,211,238,0.12)] border-cyan-500/25">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                    <div className="flex items-center gap-2">
-                      <Terminal className="w-4 h-4 text-cyan-400 rotate-90" />
-                      <h2 className="text-xs font-bold font-mono tracking-widest uppercase text-stone-200">
-                        Admin Portal
-                      </h2>
-                    </div>
-                    <button
-                      onClick={() => setActiveTab("home")}
-                      className="group pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-cyan-500/30 hover:text-cyan-200 text-[10px] text-stone-300 tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                    >
-                      <ChevronLeft className="w-3 h-3 text-stone-400 group-hover:text-cyan-400" />
-                      <span>Back to site</span>
-                    </button>
-                  </div>
-
-                  {!isAdminAuthenticated ? (
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        try {
-                          // Validate securely via primary server-side API auth route
-                          const res = await fetch("/api/admin/auth", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              username: adminUsername,
-                              password: adminPassword,
-                            }),
-                          });
-
-                          if (res.ok) {
-                            const data = await res.json();
-                            if (data.authenticated) {
-                              setIsAdminAuthenticated(true);
-                              setAuthError("");
-                              return;
-                            }
-                          }
-
-                          setAuthError(
-                            "Unauthorized Administrative access token or passcode mismatch",
-                          );
-                        } catch (err) {
-                          console.error("Authentication exception:", err);
-                          setAuthError(
-                            "An error occurred during authentication. Please retry.",
-                          );
-                        }
-                      }}
-                      className="space-y-4"
-                      autoComplete="off"
-                      noValidate
-                    >
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-mono tracking-widest uppercase text-stone-400">
-                          Username
-                        </label>
-                        <input
-                          type="text"
-                          value={adminUsername}
-                          onChange={(e) => setAdminUsername(e.target.value)}
-                          placeholder="admin"
-                          required
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="none"
-                          spellCheck="false"
-                          className="w-full bg-white/[0.02] hover:bg-white/[0.04] focus:bg-white/[0.06] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-mono tracking-widest uppercase text-stone-400">
-                          Security Passcode
-                        </label>
-                        <input
-                          type="password"
-                          value={adminPassword}
-                          onChange={(e) => setAdminPassword(e.target.value)}
-                          placeholder="••••••••••••"
-                          required
-                          autoComplete="new-password"
-                          autoCorrect="off"
-                          autoCapitalize="none"
-                          spellCheck="false"
-                          className="w-full bg-white/[0.02] hover:bg-white/[0.04] focus:bg-white/[0.06] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
-                        />
-                      </div>
-
-                      {authError && (
-                        <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-950/20 text-[10px] text-rose-400 font-mono tracking-wide leading-relaxed animate-pulse">
-                          {authError}
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        className="w-full h-10 mt-2 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 active:scale-[0.98] text-cyan-300 text-xs font-bold tracking-widest uppercase rounded-lg transition-all cursor-pointer"
-                      >
-                        Authenticate Access
-                      </button>
-                    </form>
-                  ) : (
-                    /* Authenticated controls */
-                    <div className="space-y-5">
-                      <div className="flex items-center gap-3 p-3 rounded-lg border border-emerald-500/25 bg-emerald-950/10 text-emerald-400">
-                        <span className="relative flex h-2.5 w-2.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
-                        </span>
-                        <div className="min-w-0 text-left">
-                          <p className="font-mono text-[10px] tracking-widest uppercase font-black">
-                            Secure Admin Session Active
-                          </p>
-                          <p className="text-[9.5px] text-stone-400 font-sans mt-0.5">
-                            Logged in as: {adminUsername}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        {/* Section 1: Core Snowflake ID */}
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-bold font-mono text-cyan-400 tracking-widest uppercase">
-                            Discord Integration settings
-                          </h3>
-                          <p className="text-[10px] text-stone-400 leading-normal font-sans">
-                            Configure the Discord User Snowflake ID for API
-                            presence routing. This ID links the public status
-                            widget live with your Discord activity.
-                          </p>
-
-                          {/* Beautiful informational card explaining Snowflake ID and Offline troubleshooting */}
-                          <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg space-y-2.5 text-left">
-                            <div>
-                              <p className="text-[10px] font-bold text-cyan-400 font-mono tracking-wider uppercase mb-0.5">
-                                💡 What is a Snowflake ID?
-                              </p>
-                              <p className="text-[10px] text-stone-400 font-sans leading-relaxed">
-                                A **Snowflake ID** is your account's permanent,
-                                unique Discord identification number (e.g.{" "}
-                                <code className="text-stone-200 font-mono bg-white/5 px-1 rounded">
-                                  1025531959736860714
-                                </code>
-                                ). It is safe, public, and allows our live
-                                status feed to fetch your status securely.
-                              </p>
-                              <p className="text-[10px] text-stone-400 font-sans leading-relaxed mt-1">
-                                <strong className="text-stone-300">
-                                  How to get your Snowflake ID:
-                                </strong>{" "}
-                                Enable **Developer Mode** in Discord Settings
-                                -&gt; Advanced, then right-click your profile
-                                picture and select **Copy User ID**. Paste it
-                                below and click save.
-                              </p>
-                            </div>
-
-                            <div className="border-t border-white/5 pt-2">
-                              <p className="text-[10px] font-bold text-amber-400 font-mono tracking-wider uppercase mb-0.5">
-                                ⚠️ Troubleshooting Discord & Spotify Status
-                              </p>
-                              <p className="text-[10px] text-stone-400 font-sans leading-relaxed">
-                                if the status shows offline or you see errors,
-                                review the following:
-                              </p>
-                              <ul className="list-disc pl-4 text-[10px] text-stone-400 font-sans space-y-1 mt-1 leading-relaxed">
-                                <li>
-                                  <strong className="text-stone-300">
-                                    Register on Lanyard (Important):
-                                  </strong>{" "}
-                                  Lanyard tracks your presence by sharing a
-                                  server with you. You must join the Lanyard
-                                  Discord Server (at{" "}
-                                  <a
-                                    href="https://discord.gg/7B7u2uX"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-cyan-400 hover:underline"
-                                  >
-                                    discord.gg/7B7u2uX
-                                  </a>
-                                  ) to prevent the API from returning a{" "}
-                                  <strong className="text-amber-300">
-                                    404 Error
-                                  </strong>
-                                  .
-                                </li>
-                                <li>
-                                  Ensure your Discord ID is connected to the
-                                  status tracker bot on the integration server.
-                                </li>
-                                <li>
-                                  Make sure{" "}
-                                  <strong className="text-stone-300">
-                                    "Share activity status by default"
-                                  </strong>{" "}
-                                  is turned ON in your Discord client settings
-                                  under{" "}
-                                  <code className="text-stone-200 font-mono bg-white/5 px-1 rounded">
-                                    Settings &gt; Activity Privacy
-                                  </code>
-                                  .
-                                </li>
-                                <li>
-                                  Ensure your Discord status is set to{" "}
-                                  <span className="text-emerald-400">
-                                    🟢 Online
-                                  </span>
-                                  ,{" "}
-                                  <span className="text-amber-400">
-                                    🟡 Idle
-                                  </span>
-                                  , or{" "}
-                                  <span className="text-rose-400">
-                                    🔴 Do Not Disturb
-                                  </span>{" "}
-                                  (not Invisible).
-                                </li>
-                              </ul>
-                            </div>
-                          </div>
-
-                          <div className="space-y-3.5 pt-1">
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold font-mono tracking-wider text-stone-400 block uppercase">
-                                Discord Snowflake ID (Required for Status Widget)
-                              </label>
-                              <input
-                                type="text"
-                                value={tempDiscordId}
-                                onChange={(e) =>
-                                  setTempDiscordId(
-                                    e.target.value.replace(/\D/g, ""),
-                                  )
-                                }
-                                placeholder="e.g. 1025531959736860714"
-                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold font-mono tracking-wider text-stone-400 block uppercase">
-                                Discord Client ID (Optional)
-                              </label>
-                              <input
-                                type="text"
-                                value={tempDiscordClientId}
-                                onChange={(e) =>
-                                  setTempDiscordClientId(
-                                    e.target.value.replace(/\D/g, ""),
-                                  )
-                                }
-                                placeholder="Enter Discord Client ID (Application ID)"
-                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold font-mono tracking-wider text-stone-400 block uppercase">
-                                Discord Client Secret (Optional)
-                              </label>
-                              <input
-                                type="password"
-                                value={tempDiscordClientSecret}
-                                onChange={(e) =>
-                                  setTempDiscordClientSecret(e.target.value)
-                                }
-                                placeholder="Enter Discord Client Secret"
-                                className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none transition-all"
-                              />
-                            </div>
-
-                            <button
-                              onClick={() => {
-                                if (tempDiscordId) {
-                                  setDiscordId(tempDiscordId);
-                                  localStorage.setItem(
-                                    "discord_id",
-                                    tempDiscordId,
-                                  );
-                                }
-                                setDiscordClientId(tempDiscordClientId);
-                                setDiscordClientSecret(tempDiscordClientSecret);
-                                saveDiscordConfigToServer(
-                                  tempDiscordId,
-                                  tempDiscordClientId,
-                                  tempDiscordClientSecret,
-                                );
-                              }}
-                              className="w-full bg-cyan-500/15 border border-cyan-500/40 hover:bg-cyan-500/25 text-cyan-300 rounded-lg py-2.5 text-xs uppercase font-mono tracking-widest font-black transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-                            >
-                              Save Settings
-                            </button>
-                          </div>
-
-                          {saveStatus && (
-                            <p className="text-[10px] text-cyan-400 font-mono mt-1 text-left animate-pulse">
-                              ✨ {saveStatus}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                        <p className="text-[9.5px] text-stone-500 font-mono uppercase tracking-wider">
-                          Session Key: REST API
-                        </p>
-                        <button
-                          onClick={() => {
-                            setIsAdminAuthenticated(false);
-                            setAdminPassword("");
-                            setAuthError("");
-                          }}
-                          className="text-[10px] text-stone-400 font-bold font-mono tracking-widest uppercase hover:text-rose-400 border border-white/5 bg-white/[0.01] hover:bg-rose-500/10 hover:border-rose-500/20 px-3 py-1.5 rounded-lg active:scale-95 transition-all cursor-pointer"
-                        >
-                          Sign Out
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <AdminTab
+                  adminUsername={adminUsername}
+                  setAdminUsername={setAdminUsername}
+                  adminPassword={adminPassword}
+                  setAdminPassword={setAdminPassword}
+                  isAdminAuthenticated={isAdminAuthenticated}
+                  setIsAdminAuthenticated={setIsAdminAuthenticated}
+                  authError={authError}
+                  setAuthError={setAuthError}
+                  tempDiscordId={tempDiscordId}
+                  setTempDiscordId={setTempDiscordId}
+                  tempDiscordClientId={tempDiscordClientId}
+                  setTempDiscordClientId={setTempDiscordClientId}
+                  tempDiscordClientSecret={tempDiscordClientSecret}
+                  setTempDiscordClientSecret={setTempDiscordClientSecret}
+                  setDiscordId={setDiscordId}
+                  setDiscordClientId={setDiscordClientId}
+                  setDiscordClientSecret={setDiscordClientSecret}
+                  saveDiscordConfigToServer={saveDiscordConfigToServer}
+                  saveStatus={saveStatus}
+                  onClose={() => setActiveTab("home")}
+                />
               </motion.div>
             )}
           </AnimatePresence>
