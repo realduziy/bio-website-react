@@ -7,14 +7,9 @@ services:
     env_file:
       - .env
     ports:
-      # Map host port 8000 (or whichever you proxy to from your VPS Nginx)
-      # to container port 3000 where our Express server listens.
+      # Maps local port 8000 on your VPS to port 3000 inside the Express container
       - "127.0.0.1:8000:3000"
-      # Alternatively, to bind to all interfaces on port 8000:
-      # - "0.0.0.0:8000:3000"
     restart: always
     volumes:
-      # OPTIONAL BUT HIGHLY RECOMMENDED:
-      # Map direct VPS asset paths to your container to persist data across container restarts and builds
-      # Maps local 'assets' folder on host machine to the container's '/app/assets' folder.
+      # Persists assets across updates
       - ./assets:/app/assets
