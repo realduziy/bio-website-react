@@ -124,15 +124,23 @@ export default defineConfig(() => {
           id.endsWith(".node") ||
           id.includes("@tailwindcss/oxide") ||
           id.includes("tailwindcss-oxide"),
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (id.includes("react") || id.includes("scheduler")) {
+                return "vendor-react";
+              }
+              if (id.includes("motion")) {
+                return "vendor-motion";
+              }
+              if (id.includes("lucide-react")) {
+                return "vendor-lucide";
+              }
+              return "vendor";
+            }
+          },
+        },
       },
-    },
-    define: {
-      __ADMIN_USERNAME_HASH__: JSON.stringify(
-        process.env.ADMIN_USERNAME_HASH || "",
-      ),
-      __ADMIN_PASSWORD_HASH__: JSON.stringify(
-        process.env.ADMIN_PASSWORD_HASH || "",
-      ),
     },
     resolve: {
       alias: {
@@ -140,6 +148,7 @@ export default defineConfig(() => {
       },
     },
     server: {
+      allowedHosts: true,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== "true",

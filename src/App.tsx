@@ -6,6 +6,7 @@ import RecentlyPlayedWidget from "./components/RecentlyPlayedWidget";
 import ProjectsTab from "./components/pages/ProjectsTab";
 import GuestbookTab from "./components/pages/GuestbookTab";
 import AdminTab from "./components/pages/AdminTab";
+import BlogPage from "./components/pages/BlogPage";
 import { getFingerprint } from "./utils/visitor";
 import { Track, DiscordStatus, DiscordActivity } from "./types";
 import {
@@ -43,6 +44,7 @@ import {
   Pause,
   Eye,
   ListMusic,
+  BookOpen,
 } from "lucide-react";
 
 // Track if current tab/load has already successfully recorded a visitor hit
@@ -74,7 +76,7 @@ function SvgBrandIcon({
         const cleaned = text
           .replace(/<title>.*?<\/title>/, "")
           .replace(/<svg /, '<svg class="w-full h-full" fill="currentColor" ');
-        
+
         // Secure sanitization to completely eliminate XSS vectors
         const sanitized = DOMPurify.sanitize(cleaned, {
           USE_PROFILES: { svg: true },
@@ -113,29 +115,48 @@ export default function App() {
   const [hasStarted, setHasStarted] = useState(() => {
     if (typeof window !== "undefined") {
       const path = window.location.pathname;
-      return path === "/adminportaldev";
+      return path === "/adminportaldev" || path === "/blog" || path.startsWith("/blog/");
     }
     return false;
   });
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const [activeTab, setActiveTabState] = useState<"home" | "about" | "admin">(
+  const [activeTab, setActiveTabState] = useState<"home" | "about" | "admin" | "blog" | "blog-post">(
     () => {
       if (typeof window !== "undefined") {
         const path = window.location.pathname;
         if (path === "/adminportaldev") return "admin";
+        if (path === "/blog") return "blog";
+        if (path.startsWith("/blog/")) return "blog-post";
         return path === "/about" ? "about" : "home";
       }
       return "home";
     },
   );
 
-  const setActiveTab = (tab: "home" | "about" | "admin") => {
+  const [activeSlug, setActiveSlug] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (path.startsWith("/blog/")) {
+        return path.substring(6);
+      }
+    }
+    return "";
+  });
+
+  const setActiveTab = (tab: "home" | "about" | "admin" | "blog" | "blog-post", slug: string = "") => {
     setActiveTabState(tab);
+    if (slug) {
+      setActiveSlug(slug);
+    } else {
+      setActiveSlug("");
+    }
     if (typeof window !== "undefined") {
       let newPath = "/";
       if (tab === "about") newPath = "/about";
       else if (tab === "admin") newPath = "/adminportaldev";
+      else if (tab === "blog") newPath = "/blog";
+      else if (tab === "blog-post") newPath = `/blog/${slug}`;
 
       if (window.location.pathname !== newPath) {
         window.history.pushState(null, "", newPath);
@@ -146,6 +167,8 @@ export default function App() {
   useEffect(() => {
     if (activeTab === "admin") {
       document.title = "duziy | Admin Portal";
+    } else if (activeTab === "blog" || activeTab === "blog-post") {
+      document.title = "duziy | Blog";
     } else {
       document.title = "duziy | Profile";
     }
@@ -156,8 +179,16 @@ export default function App() {
       const path = window.location.pathname;
       if (path === "/adminportaldev") {
         setActiveTabState("admin");
+        setActiveSlug("");
+      } else if (path === "/blog") {
+        setActiveTabState("blog");
+        setActiveSlug("");
+      } else if (path.startsWith("/blog/")) {
+        setActiveTabState("blog-post");
+        setActiveSlug(path.substring(6));
       } else {
         setActiveTabState(path === "/about" ? "about" : "home");
+        setActiveSlug("");
       }
     };
     window.addEventListener("popstate", handlePopState);
@@ -218,6 +249,8 @@ export default function App() {
   const [discordClientSecret, setDiscordClientSecret] = useState("");
   const [tempDiscordClientId, setTempDiscordClientId] = useState("");
   const [tempDiscordClientSecret, setTempDiscordClientSecret] = useState("");
+  const [lastfmUsername, setLastfmUsername] = useState("");
+  const [tempLastfmUsername, setTempLastfmUsername] = useState("");
 
   const [discordStatus, setDiscordStatus] = useState<DiscordStatus | null>(null);
   const [isEditingDiscordId, setIsEditingDiscordId] = useState(false);
@@ -263,6 +296,10 @@ export default function App() {
         if (data.discordClientSecret) {
           setDiscordClientSecret(data.discordClientSecret);
           setTempDiscordClientSecret(data.discordClientSecret);
+        }
+        if (data.lastfmUsername) {
+          setLastfmUsername(data.lastfmUsername);
+          setTempLastfmUsername(data.lastfmUsername);
         }
       })
       .catch((err) => {
@@ -375,7 +412,12 @@ export default function App() {
     return () => clearInterval(rpInterval);
   }, []);
 
-  const saveDiscordConfigToServer = async (targetId: string, targetClientId: string = "", targetClientSecret: string = "") => {
+  const saveDiscordConfigToServer = async (
+    targetId: string,
+    targetClientId: string = "",
+    targetClientSecret: string = "",
+    targetLastfmUsername: string = ""
+  ) => {
     setSaveStatus("Saving...");
     try {
       const res = await fetch("/api/discord-config", {
@@ -387,6 +429,7 @@ export default function App() {
           discordId: targetId,
           discordClientId: targetClientId,
           discordClientSecret: targetClientSecret,
+          lastfmUsername: targetLastfmUsername,
         }),
       });
       if (!res.ok) {
@@ -641,7 +684,7 @@ export default function App() {
       if (!isPlaying || isSeekingSync) return;
       const vTime = video.currentTime;
       const aTime = audio.currentTime;
-      
+
       // If we've drifted by more than 0.1s, sync timelines immediately
       if (Math.abs(aTime - vTime) > 0.1) {
         audio.currentTime = vTime;
@@ -930,7 +973,7 @@ export default function App() {
 
             // Find custom text status
             const customActivity = d.activities?.find(
-              (act: any) => act.type === 4,
+              (act: DiscordActivity) => act.type === 4,
             );
             if (customActivity) {
               customStatus = customActivity.state || "";
@@ -941,7 +984,7 @@ export default function App() {
 
             // Find active gameplay or app
             const gameActivity = d.activities?.find(
-              (act: any) => act.type === 0,
+              (act: DiscordActivity) => act.type === 0,
             );
             if (gameActivity) {
               game = gameActivity.name || "";
@@ -1175,14 +1218,26 @@ export default function App() {
                 >
                   {/* Dynamic Scalable Header Bar containing About Me Action & View Counter */}
                   <div className="w-full flex flex-col md:flex-row items-center justify-between gap-3 md:gap-4 border-b border-white/5 pb-4 mb-2 w-[100%] max-w-full">
-                    {/* About Me Action Component */}
-                    <button
-                      onClick={() => setActiveTab("about")}
-                      className="w-full max-w-[200px] sm:max-w-[220px] md:w-auto group cursor-pointer inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-stone-300 font-sans tracking-wide hover:border-cyan-500/30 hover:bg-white/[0.08] hover:text-cyan-300 transition-all duration-300 pointer-events-auto shadow-sm select-none text-xs sm:text-xs md:text-xs lg:text-sm"
-                    >
-                      <User className="w-3.5 h-3.5 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4 text-stone-400 group-hover:text-cyan-400 transition-colors" />
-                      <span className="font-semibold px-0.5">About Me</span>
-                    </button>
+                    {/* Navigation Buttons Row */}
+                    <div className="flex gap-2 w-full md:w-auto">
+                      {/* About Me Action Component */}
+                      <button
+                        onClick={() => setActiveTab("about")}
+                        className="flex-1 md:flex-initial group cursor-pointer inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-stone-300 font-sans tracking-wide hover:border-cyan-500/30 hover:bg-white/[0.08] hover:text-cyan-300 transition-all duration-300 pointer-events-auto shadow-sm select-none text-xs"
+                      >
+                        <User className="w-3.5 h-3.5 text-stone-400 group-hover:text-cyan-400 transition-colors" />
+                        <span className="font-semibold">About Me</span>
+                      </button>
+
+                      {/* Blog Action Component */}
+                      <button
+                        onClick={() => setActiveTab("blog")}
+                        className="flex-1 md:flex-initial group cursor-pointer inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/10 bg-white/[0.03] text-stone-300 font-sans tracking-wide hover:border-cyan-500/30 hover:bg-white/[0.08] hover:text-cyan-300 transition-all duration-300 pointer-events-auto shadow-sm select-none text-xs"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 text-stone-400 group-hover:text-cyan-400 transition-colors" />
+                        <span className="font-semibold">Blog</span>
+                      </button>
+                    </div>
 
                     {/* Minimalist Proportional View Counter Component */}
                     {visitorCount !== null && (
@@ -1560,12 +1615,36 @@ export default function App() {
                   setTempDiscordClientId={setTempDiscordClientId}
                   tempDiscordClientSecret={tempDiscordClientSecret}
                   setTempDiscordClientSecret={setTempDiscordClientSecret}
+                  tempLastfmUsername={tempLastfmUsername}
+                  setTempLastfmUsername={setTempLastfmUsername}
                   setDiscordId={setDiscordId}
                   setDiscordClientId={setDiscordClientId}
                   setDiscordClientSecret={setDiscordClientSecret}
+                  setLastfmUsername={setLastfmUsername}
                   saveDiscordConfigToServer={saveDiscordConfigToServer}
                   saveStatus={saveStatus}
                   onClose={() => setActiveTab("home")}
+                />
+              </motion.div>
+            )}
+
+            {/* View D: BLOG PAGES */}
+            {(activeTab === "blog" || activeTab === "blog-post") && (
+              <motion.div
+                key="blog-page"
+                initial={{ opacity: 0, scale: 0.97, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: -15 }}
+                transition={{ duration: 0.45, ease: "easeOut" }}
+                className="w-full max-w-[620px] px-2 sm:px-0 relative"
+              >
+                {/* Ambient Card Background Glow Aura */}
+                <div className="absolute -inset-4 rounded-[2.5rem] blur-2xl opacity-20 bg-cyan-400/10 transition-all duration-500 pointer-events-none" />
+
+                <BlogPage
+                  activeTab={activeTab}
+                  activeSlug={activeSlug}
+                  setActiveTab={setActiveTab}
                 />
               </motion.div>
             )}

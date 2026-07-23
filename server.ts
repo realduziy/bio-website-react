@@ -44,6 +44,8 @@ function sha256(val: string): string {
 
 async function startServer() {
   const app = express();
+  // Enable trust proxy so express-rate-limit correctly handles reverse proxy headers (Cloud Run, Nginx, etc.)
+  app.set("trust proxy", 1);
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   writeDebugLog(`startServer() called. Configured PORT is ${PORT}`);
 
@@ -97,7 +99,7 @@ async function startServer() {
   app.use("/assets", express.static(localAssetsPath));
 
   // Secure API Admin verification helper supporting both plaintext and SHA-256 hashes
-  function verifyAdmin(username: any, password: any): boolean {
+  function verifyAdmin(username: unknown, password: unknown): boolean {
     if (typeof username !== "string" || typeof password !== "string") {
       return false;
     }
@@ -217,14 +219,25 @@ async function startServer() {
     const bgVideoPath = path.join(storageDir, "background.mp4");
     const bgMusicPath = path.join(storageDir, "background_music.mp3");
 
+    // Clean up any zero-byte empty files first to prevent range satisfiable serving errors
+    for (const p of [bgVideoPath, bgMusicPath]) {
+      try {
+        if (fs.existsSync(p) && fs.statSync(p).size === 0) {
+          fs.unlinkSync(p);
+          console.log(`[Express Server] Deleted empty zero-byte file to prevent range errors: ${p}`);
+        }
+      } catch (err: any) {
+        console.error(`[Express Server] Error deleting zero-byte file ${p}: ${err.message}`);
+      }
+    }
+
     // 1. Check and download background.mp4 space loop if empty/missing
     if (isFileEmptyOrMissing(bgVideoPath)) {
       console.log("[Express Server] background.mp4 is empty or missing. Auto-downloading high-quality cosmic space background loop...");
-      
+
       const candidateUrls = [
-        "https://raw.githubusercontent.com/yuribeiro/space-travel/master/src/assets/video.mp4",
-        "https://github.com/scotthsmith/Space-Landing/raw/master/space.mp4",
-        "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1611-large.mp4"
+        "https://vjs.zencdn.net/v/oceans.mp4",
+        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
       ];
 
       let downloadedSuccessfully = false;
@@ -238,7 +251,6 @@ async function startServer() {
               headers: {
                 "User-Agent":
                   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "https://github.com/scotthsmith/Space-Landing",
               },
             },
           );
@@ -260,33 +272,61 @@ async function startServer() {
 
       if (!downloadedSuccessfully) {
         console.error("[Express Server] All background.mp4 download candidates failed! Visual loop might lack ambient space motion until setup.");
+        try {
+          if (fs.existsSync(bgVideoPath) && fs.statSync(bgVideoPath).size === 0) {
+            fs.unlinkSync(bgVideoPath);
+          }
+        } catch {}
       }
     }
 
     // 2. Check and download background_music.mp3 space chill lofi track if empty/missing
     if (isFileEmptyOrMissing(bgMusicPath)) {
       console.log("[Express Server] background_music.mp3 is empty or missing. Auto-downloading smooth ambient lofi music track...");
-      try {
-        const response = await fetch(
-          "https://raw.githubusercontent.com/AnshumanFauzdar/Lofi-music-vibe/main/music/1.mp3",
-          {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+
+      const musicCandidates = [
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+        "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"
+      ];
+
+      let musicDownloaded = false;
+
+      for (const musicUrl of musicCandidates) {
+        try {
+          console.log(`[Express Server] Attempting to download background_music.mp3 from: ${musicUrl}`);
+          const response = await fetch(
+            musicUrl,
+            {
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+              },
             },
-          },
-        );
-        if (response.ok) {
-          const arrayBuffer = await response.arrayBuffer();
-          if (arrayBuffer) {
-            await fsPromises.writeFile(bgMusicPath, Buffer.from(arrayBuffer));
-            console.log("[Express Server] Successfully downloaded and saved ambient lofi track to /assets/background_music.mp3!");
+          );
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            if (arrayBuffer && arrayBuffer.byteLength > 1000) {
+              await fsPromises.writeFile(bgMusicPath, Buffer.from(arrayBuffer));
+              console.log(`[Express Server] Successfully downloaded and saved ambient lofi track from ${musicUrl}!`);
+              musicDownloaded = true;
+              break;
+            }
+          } else {
+            console.warn(`[Express Server] Failed to fetch background_music.mp3 from ${musicUrl}: HTTP ${response.status}`);
           }
-        } else {
-          console.warn(`[Express Server] Failed to fetch background_music.mp3: HTTP ${response.status}`);
+        } catch (err: any) {
+          console.error(`[Express Server] Error downloading background_music.mp3 from ${musicUrl}: ${err.message}`);
         }
-      } catch (err: any) {
-        console.error(`[Express Server] Error downloading background_music.mp3 helper: ${err.message}`);
+      }
+
+      if (!musicDownloaded) {
+        console.error("[Express Server] All background_music.mp3 download candidates failed!");
+        try {
+          if (fs.existsSync(bgMusicPath) && fs.statSync(bgMusicPath).size === 0) {
+            fs.unlinkSync(bgMusicPath);
+          }
+        } catch {}
       }
     }
   }
@@ -301,11 +341,12 @@ async function startServer() {
   const recentlyPlayedFilePath = path.join(storageDir, "recently_played.json");
   const topTracksFilePath = path.join(storageDir, "top_tracks.json");
 
-  // In-Memory Fast Cache of globally active Discord configuration
+  // In-Memory Fast Cache of globally active Discord & Music configuration
   const cachedDiscordConfig = {
     discordId: (process.env.DEFAULT_DISCORD_ID || "1025531959736860714").trim(),
     discordClientId: (process.env.DISCORD_CLIENT_ID || "").trim(),
     discordClientSecret: (process.env.DISCORD_CLIENT_SECRET || "").trim(),
+    lastfmUsername: (process.env.LASTFM_USERNAME || "").trim(),
   };
 
   try {
@@ -319,6 +360,9 @@ async function startServer() {
       }
       if (configData.discordClientSecret !== undefined) {
         cachedDiscordConfig.discordClientSecret = configData.discordClientSecret.trim();
+      }
+      if (configData.lastfmUsername !== undefined) {
+        cachedDiscordConfig.lastfmUsername = configData.lastfmUsername.trim();
       }
     }
   } catch (err) {
@@ -489,28 +533,231 @@ async function startServer() {
     });
   });
 
-  // Public endpoint to read recently played Spotify songs
-  app.get("/api/recently-played", (req, res) => {
+  // Public endpoint to read recently played Spotify / Last.fm songs
+  app.get("/api/recently-played", async (req, res) => {
+    try {
+      await syncMusicTracks();
+    } catch (e) {}
     res.json(recentlyPlayed);
   });
 
-  // Public endpoint to read real-time computed top played Spotify songs sorted by play frequency
-  app.get("/api/top-tracks", (req, res) => {
+  // Public endpoint to read real-time computed top played songs sorted by play frequency
+  app.get("/api/top-tracks", async (req, res) => {
+    try {
+      await syncMusicTracks();
+    } catch (e) {}
     res.json(topTracks);
   });
 
-  // Public endpoint to read the globally active Discord Snowflake configuration
+
+  // Helper to generate a unique url-safe slug from title
+  function generateSlug(title: string, existingSlugs: string[]): string {
+    let slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+
+    if (!slug) {
+      slug = "post";
+    }
+
+    let finalSlug = slug;
+    let counter = 1;
+    while (existingSlugs.includes(finalSlug)) {
+      finalSlug = `${slug}-${counter}`;
+      counter++;
+    }
+    return finalSlug;
+  }
+
+  const postsFilePath = path.join(storageDir, "posts.json");
+
+  // Helper to read posts from file in a fully asynchronous, non-blocking manner
+  async function readPostsFromFile(): Promise<any[]> {
+    try {
+      const fileContent = await fsPromises.readFile(postsFilePath, "utf8");
+      const parsed = JSON.parse(fileContent);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (err: any) {
+      if (err.code !== "ENOENT") {
+        console.error("[Blog Backend] Failed to read or parse posts.json:", err);
+      }
+    }
+    return [];
+  }
+
+  // Public: Get all posts
+  app.get("/api/posts", async (req, res) => {
+    try {
+      const posts = await readPostsFromFile();
+      const showAll = req.query.all === "true";
+      const username = req.query.username;
+      const password = req.query.password;
+
+      let isAdmin = false;
+      if (showAll && username && password) {
+        isAdmin = verifyAdmin(username, password);
+      }
+
+      // Sort posts by newest first
+      const sorted = [...posts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      if (isAdmin) {
+        res.json(sorted);
+      } else {
+        res.json(sorted.filter(p => p.isPublished));
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to load posts" });
+    }
+  });
+
+  // Public: Get post by slug
+  app.get("/api/posts/:slug", async (req, res) => {
+    try {
+      const posts = await readPostsFromFile();
+      const post = posts.find(p => p.slug === req.params.slug);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      res.json(post);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to load post" });
+    }
+  });
+
+  // Admin: Create new post
+  app.post("/api/posts", authLimiter, async (req, res) => {
+    const { username, password, title, summary, coverImageUrl, content, isPublished } = req.body;
+
+    if (!verifyAdmin(username, password)) {
+      return res.status(401).json({ error: "Unauthorized update attempt." });
+    }
+
+    if (!title || typeof title !== "string") {
+      return res.status(400).json({ error: "Title is required and must be a string." });
+    }
+
+    try {
+      const posts = await readPostsFromFile();
+      const existingSlugs = posts.map(p => p.slug);
+      const slug = generateSlug(title, existingSlugs);
+
+      const newPost = {
+        id: "post-" + Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+        title: title.trim(),
+        slug,
+        summary: (summary || "").trim(),
+        coverImageUrl: (coverImageUrl || "").trim(),
+        content: (content || "").trim(),
+        isPublished: !!isPublished,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      posts.push(newPost);
+      await safeWriteFile(postsFilePath, posts);
+
+      res.status(201).json(newPost);
+    } catch (err: any) {
+      console.error("[Blog Backend] Error creating post:", err);
+      res.status(500).json({ error: "Failed to save blog post" });
+    }
+  });
+
+  // Admin: Update post
+  app.put("/api/posts/:id", authLimiter, async (req, res) => {
+    const { username, password, title, summary, coverImageUrl, content, isPublished } = req.body;
+    const { id } = req.params;
+
+    if (!verifyAdmin(username, password)) {
+      return res.status(401).json({ error: "Unauthorized update attempt." });
+    }
+
+    if (title !== undefined && (typeof title !== "string" || !title.trim())) {
+      return res.status(400).json({ error: "Title must be a non-empty string." });
+    }
+
+    try {
+      const posts = await readPostsFromFile();
+      const index = posts.findIndex(p => p.id === id);
+      if (index === -1) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      const existingPost = posts[index];
+      let slug = existingPost.slug;
+
+      // Regenerate slug if title is changed
+      if (title && title.trim() !== existingPost.title) {
+        const otherSlugs = posts.filter(p => p.id !== id).map(p => p.slug);
+        slug = generateSlug(title, otherSlugs);
+      }
+
+      const updatedPost = {
+        ...existingPost,
+        title: title !== undefined ? title.trim() : existingPost.title,
+        slug,
+        summary: summary !== undefined ? summary.trim() : existingPost.summary,
+        coverImageUrl: coverImageUrl !== undefined ? coverImageUrl.trim() : existingPost.coverImageUrl,
+        content: content !== undefined ? content.trim() : existingPost.content,
+        isPublished: isPublished !== undefined ? !!isPublished : existingPost.isPublished,
+        updatedAt: Date.now()
+      };
+
+      posts[index] = updatedPost;
+      await safeWriteFile(postsFilePath, posts);
+
+      res.json(updatedPost);
+    } catch (err: any) {
+      console.error("[Blog Backend] Error updating post:", err);
+      res.status(500).json({ error: "Failed to update blog post" });
+    }
+  });
+
+  // Admin: Delete post
+  app.delete("/api/posts/:id", authLimiter, async (req, res) => {
+    const { username, password } = req.body;
+    const { id } = req.params;
+
+    if (!verifyAdmin(username, password)) {
+      return res.status(401).json({ error: "Unauthorized update attempt." });
+    }
+
+    try {
+      const posts = await readPostsFromFile();
+      const index = posts.findIndex(p => p.id === id);
+      if (index === -1) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      posts.splice(index, 1);
+      await safeWriteFile(postsFilePath, posts);
+
+      res.json({ success: true, message: "Blog post deleted successfully" });
+    } catch (err: any) {
+      console.error("[Blog Backend] Error deleting post:", err);
+      res.status(500).json({ error: "Failed to delete blog post" });
+    }
+  });
+
+  // Public endpoint to read the globally active Discord & Music configuration
   app.get("/api/discord-config", (req, res) => {
     res.json({
       discordId: cachedDiscordConfig.discordId,
       discordClientId: cachedDiscordConfig.discordClientId,
       discordClientSecret: cachedDiscordConfig.discordClientSecret,
+      lastfmUsername: cachedDiscordConfig.lastfmUsername,
     });
   });
 
-  // Protected endpoint to update the globally active Discord config ID
+  // Protected endpoint to update the globally active Discord & Music config
   app.post("/api/discord-config", authLimiter, async (req, res) => {
-    const { username, password, discordId, discordClientId, discordClientSecret } = req.body;
+    const { username, password, discordId, discordClientId, discordClientSecret, lastfmUsername } = req.body;
 
     if (!verifyAdmin(username, password)) {
       return res.status(401).json({ error: "Unauthorized update attempt." });
@@ -524,22 +771,24 @@ async function startServer() {
         ).trim(),
         discordClientId: (discordClientId !== undefined ? discordClientId : "").trim(),
         discordClientSecret: (discordClientSecret !== undefined ? discordClientSecret : "").trim(),
+        lastfmUsername: (lastfmUsername !== undefined ? lastfmUsername : "").trim(),
       };
 
       // Update the memory cache for instant access without blocking disk queries
       cachedDiscordConfig.discordId = updatedConfig.discordId;
       cachedDiscordConfig.discordClientId = updatedConfig.discordClientId;
       cachedDiscordConfig.discordClientSecret = updatedConfig.discordClientSecret;
+      cachedDiscordConfig.lastfmUsername = updatedConfig.lastfmUsername;
 
       await safeWriteFile(configFilePath, updatedConfig);
 
       res.json({
         success: true,
-        message: "Discord Snowflake ID saved globally on server!",
+        message: "Discord & Music configuration saved globally on server!",
       });
 
       // Instantly trigger polling check on save to update presence right away
-      checkSpotifyPresence();
+      syncMusicTracks();
     } catch (err: any) {
       console.error("Error writing discord_config.json:", err);
       res
@@ -548,134 +797,184 @@ async function startServer() {
     }
   });
 
-  // Dynamic status polling system to track recently played Spotify songs
-  let lastTrackId: string | null = null;
-  async function checkSpotifyPresence() {
+  // Dynamic multi-source music tracking system (Last.fm scrobbles + Lanyard Spotify)
+  let isSyncing = false;
+  let lastSyncTimestamp = 0;
+
+  async function syncMusicTracks() {
+    if (isSyncing) return;
+    // Throttle syncs to no more than once every 4 seconds
+    if (Date.now() - lastSyncTimestamp < 4000) return;
+
+    isSyncing = true;
+    lastSyncTimestamp = Date.now();
+
     try {
-      const discordId = cachedDiscordConfig.discordId;
+      let updated = false;
 
-      console.log(
-        `[Spotify Tracker] Polling Lanyard for Discord ID: ${discordId}`,
-      );
-      const res = await fetch(`https://api.lanyard.rest/v1/users/${discordId}`);
-      if (!res.ok) {
-        if (res.status === 404) {
-          console.warn(
-            `[Spotify Tracker] Lanyard API returned 404 for Discord ID: ${discordId}. Action required: To enable Lanyard status tracking, please join the Lanyard Discord server at https://discord.gg/7B7u2uX to register your profile.`,
-          );
-        } else {
-          console.warn(
-            `[Spotify Tracker] Lanyard API returned HTTP error: ${res.status}`,
-          );
-        }
-        return;
-      }
-      const json: any = await res.json();
-      if (json.success && json.data) {
-        const d = json.data;
-        const onlineStatus = d.discord_status || "offline";
-        console.log(
-          `[Spotify Tracker] Discord User online status: ${onlineStatus}`,
-        );
+      // 1. Last.fm Integration (Preserves 24/7 scrobble history even when no visitors are on site)
+      if (cachedDiscordConfig.lastfmUsername) {
+        try {
+          const lfmUser = cachedDiscordConfig.lastfmUsername;
+          const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(lfmUser)}&api_key=b25752206e578c2e1f69201a073f13dd&format=json&limit=20`;
+          const lfmRes = await fetch(url);
+          if (lfmRes.ok) {
+            const lfmData: any = await lfmRes.json();
+            const tracks = lfmData?.recenttracks?.track;
+            if (Array.isArray(tracks) && tracks.length > 0) {
+              // Last.fm returns newest first. Reverse to process chronologically
+              const reversed = [...tracks].reverse();
 
-        if (d.listening_to_spotify && d.spotify) {
-          const s = d.spotify;
-          console.log(
-            `[Spotify Tracker] User is LISTENING on Spotify: "${s.song}" by "${s.artist}" (Track ID: ${s.track_id})`,
-          );
+              for (const t of reversed) {
+                const song = t.name;
+                const artist = typeof t.artist === "object" ? t.artist["#text"] || t.artist.name : t.artist;
+                const album = typeof t.album === "object" ? t.album["#text"] : t.album || "";
 
-          if (s.track_id && s.track_id !== lastTrackId) {
-            console.log(
-              `[Spotify Tracker] Track changed from "${lastTrackId}" to "${s.track_id}"`,
-            );
-            lastTrackId = s.track_id;
+                if (!song || !artist) continue;
 
-            // Check if it's already the most recently added song
-            const mostRecent = recentlyPlayed[0];
-            if (!mostRecent || mostRecent.trackId !== s.track_id) {
-              const newTrack = {
-                trackId: s.track_id,
-                song: s.song,
-                artist: s.artist,
-                album: s.album,
-                albumArtUrl: s.album_art_url,
-                playedAt: Date.now(),
-              };
-              recentlyPlayed.unshift(newTrack);
-              // Limit to last 20 songs as requested
-              recentlyPlayed = recentlyPlayed.slice(0, 20);
-              safeWriteFile(recentlyPlayedFilePath, recentlyPlayed);
-
-              // Dynamically adjust track statistics to generate actual personalized Top Tracks list
-              const trackIdx = topTracks.findIndex(
-                (t: any) => t.trackId === s.track_id,
-              );
-              if (trackIdx !== -1) {
-                topTracks[trackIdx].playCount =
-                  (topTracks[trackIdx].playCount || 1) + 1;
-                topTracks[trackIdx].playedAt = Date.now();
-                topTracks[trackIdx].song = s.song;
-                topTracks[trackIdx].artist = s.artist;
-                topTracks[trackIdx].album = s.album;
-                topTracks[trackIdx].albumArtUrl = s.album_art_url;
-                console.log(
-                  `[Spotify Tracker] Incrementing play count for existing top track: "${s.song}" to ${topTracks[trackIdx].playCount}x`,
-                );
-              } else {
-                topTracks.push({
-                  trackId: s.track_id,
-                  song: s.song,
-                  artist: s.artist,
-                  album: s.album,
-                  albumArtUrl: s.album_art_url,
-                  playedAt: Date.now(),
-                  playCount: 1,
-                });
-                console.log(
-                  `[Spotify Tracker] Added brand new top track candidate: "${s.song}" (1x)`,
-                );
-              }
-
-              // Sort by play count weight, then by recency if count matches
-              topTracks.sort((a: any, b: any) => {
-                if (b.playCount !== a.playCount) {
-                  return b.playCount - a.playCount;
+                let albumArtUrl = "";
+                if (Array.isArray(t.image)) {
+                  const imgObj = t.image.find((i: any) => i.size === "extralarge") || t.image.find((i: any) => i.size === "large") || t.image[2] || t.image[0];
+                  if (imgObj && imgObj["#text"]) {
+                    albumArtUrl = imgObj["#text"];
+                  }
                 }
-                return b.playedAt - a.playedAt;
-              });
 
-              // Keep up to 50 items
-              topTracks = topTracks.slice(0, 50);
-              safeWriteFile(topTracksFilePath, topTracks);
-            } else {
-              console.log(
-                `[Spotify Tracker] Track matches current head of Recently Played list, skipping duplicate write.`,
-              );
+                const trackId = t.mbid || `${song.toLowerCase()}-${artist.toLowerCase()}`;
+                const playedAt = t.date?.uts ? parseInt(t.date.uts, 10) * 1000 : Date.now();
+
+                // Check if song+artist is already recorded as most recent or in recentlyPlayed list
+                const existingIdx = recentlyPlayed.findIndex(
+                  (rp: any) => rp.song.toLowerCase() === song.toLowerCase() && rp.artist.toLowerCase() === artist.toLowerCase()
+                );
+
+                if (existingIdx === -1) {
+                  const newTrack = {
+                    trackId,
+                    song,
+                    artist,
+                    album,
+                    albumArtUrl,
+                    playedAt,
+                  };
+                  recentlyPlayed.unshift(newTrack);
+                  updated = true;
+
+                  // Update Top Tracks play count
+                  const topIdx = topTracks.findIndex(
+                    (top: any) => top.song.toLowerCase() === song.toLowerCase() && top.artist.toLowerCase() === artist.toLowerCase()
+                  );
+
+                  if (topIdx !== -1) {
+                    topTracks[topIdx].playCount = (topTracks[topIdx].playCount || 1) + 1;
+                    topTracks[topIdx].playedAt = playedAt;
+                    if (albumArtUrl) topTracks[topIdx].albumArtUrl = albumArtUrl;
+                  } else {
+                    topTracks.push({
+                      trackId,
+                      song,
+                      artist,
+                      album,
+                      albumArtUrl,
+                      playedAt,
+                      playCount: 1,
+                    });
+                  }
+                }
+              }
             }
           }
-        } else {
-          console.log(
-            `[Spotify Tracker] User is NOT currently active on Spotify (or status is hidden).`,
-          );
-          // If they stop listening, reset so if they play the same track later it triggers again
-          lastTrackId = null;
+        } catch (err: any) {
+          console.warn("[Music Sync] Last.fm fetch warning:", err.message);
         }
-      } else {
-        console.warn(
-          `[Spotify Tracker] Lanyard API returned success false or missing user data.`,
-        );
+      }
+
+      // 2. Poll Lanyard for live Discord / Spotify presence
+      if (cachedDiscordConfig.discordId) {
+        try {
+          const discordId = cachedDiscordConfig.discordId;
+          const res = await fetch(`https://api.lanyard.rest/v1/users/${discordId}`);
+          if (res.ok) {
+            const json: any = await res.json();
+            if (json.success && json.data) {
+              const d = json.data;
+              if (d.listening_to_spotify && d.spotify) {
+                const s = d.spotify;
+                const trackId = s.track_id || `${s.song.toLowerCase()}-${s.artist.toLowerCase()}`;
+
+                const mostRecent = recentlyPlayed[0];
+                const isNew = !mostRecent ||
+                  mostRecent.song.toLowerCase() !== s.song.toLowerCase() ||
+                  mostRecent.artist.toLowerCase() !== s.artist.toLowerCase();
+
+                if (isNew) {
+                  const newTrack = {
+                    trackId,
+                    song: s.song,
+                    artist: s.artist,
+                    album: s.album,
+                    albumArtUrl: s.album_art_url,
+                    playedAt: Date.now(),
+                  };
+
+                  recentlyPlayed.unshift(newTrack);
+                  updated = true;
+
+                  const topIdx = topTracks.findIndex(
+                    (top: any) => top.song.toLowerCase() === s.song.toLowerCase() && top.artist.toLowerCase() === s.artist.toLowerCase()
+                  );
+
+                  if (topIdx !== -1) {
+                    topTracks[topIdx].playCount = (topTracks[topIdx].playCount || 1) + 1;
+                    topTracks[topIdx].playedAt = Date.now();
+                    if (s.album_art_url) topTracks[topIdx].albumArtUrl = s.album_art_url;
+                  } else {
+                    topTracks.push({
+                      trackId,
+                      song: s.song,
+                      artist: s.artist,
+                      album: s.album,
+                      albumArtUrl: s.album_art_url,
+                      playedAt: Date.now(),
+                      playCount: 1,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn("[Music Sync] Lanyard fetch warning:", err.message);
+        }
+      }
+
+      // 3. Save state to disk if new tracks were logged
+      if (updated) {
+        recentlyPlayed = recentlyPlayed.slice(0, 20);
+
+        topTracks.sort((a: any, b: any) => {
+          if (b.playCount !== a.playCount) {
+            return b.playCount - a.playCount;
+          }
+          return b.playedAt - a.playedAt;
+        });
+        topTracks = topTracks.slice(0, 50);
+
+        await safeWriteFile(recentlyPlayedFilePath, recentlyPlayed);
+        await safeWriteFile(topTracksFilePath, topTracks);
+        console.log("[Music Sync] Successfully updated recently played & top tracks.");
       }
     } catch (err: any) {
-      console.error(
-        `[Spotify Tracker] Connection or parsing error: ${err.message}`,
-      );
+      console.error("[Music Sync] Error during track sync:", err.message);
+    } finally {
+      isSyncing = false;
     }
   }
 
-  // Periodic polling check (runs every 30 seconds)
-  setInterval(checkSpotifyPresence, 30000);
+  // Periodic polling check (runs every 10 seconds background)
+  setInterval(syncMusicTracks, 10000);
   // Initial polling check on startup
-  setTimeout(checkSpotifyPresence, 5000);
+  setTimeout(syncMusicTracks, 2000);
 
   writeDebugLog(`Preparing static routing / Vite middleware. NODE_ENV is: "${process.env.NODE_ENV}"`);
   // Serve with Vite in development, static directory in production
@@ -709,13 +1008,25 @@ async function startServer() {
     const distPath = path.join(process.cwd(), "dist");
     writeDebugLog(`Setting up Express static file serving from "${distPath}" (Production Mode)`);
     app.use(express.static(distPath));
-    
+
     // Support wildcard routing across standard Express engines
     const serveIndexHTML = (req: express.Request, res: express.Response) => {
       res.sendFile(path.join(distPath, "index.html"));
     };
     app.get("*all", serveIndexHTML);
   }
+
+  // Graceful range unsatisfiable and static file handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err.name === "RangeNotSatisfiableError" || err.status === 416 || err.code === "ERR_HTTP_INVALID_STATUS_CODE") {
+      writeDebugLog(`[Range Intercept] Range unsatisfiable or status error intercepted for ${req.originalUrl || req.url}: ${err.message}`);
+      if (!res.headersSent) {
+        res.status(416).send("Requested Range Not Satisfiable");
+      }
+      return;
+    }
+    next(err);
+  });
 
   writeDebugLog(`Attempting to bind/listen Express app on port ${PORT}...`);
   app.listen(PORT, "0.0.0.0", () => {

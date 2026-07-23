@@ -52,3 +52,16 @@ export interface DiscordStatus {
   tag?: string;
   raw?: any;
 }
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string;
+  coverImageUrl?: string;
+  content: string;
+  isPublished: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
