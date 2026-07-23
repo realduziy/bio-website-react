@@ -4,17 +4,16 @@
 FROM node:26-slim AS builder
 WORKDIR /app
 
-# Copy package.json and package-lock.json explicitly
-COPY package.json package-lock.json ./
+# Copy package definition
+COPY package.json ./
 
-# Install ALL dependencies (including devDependencies like typescript/esbuild)
-# strictly using the package-lock.json file
-RUN npm ci
+# Generate lockfile & install all dependencies (including devDependencies)
+RUN npm install
 
-# Copy your codebase
+# Copy application source code
 COPY . .
 
-# Build your React frontend assets and compile your Express server
+# Build React frontend assets and compile Express server
 RUN npm run build
 
 
@@ -26,22 +25,21 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy package configs to the runner stage
-COPY package.json package-lock.json ./
+# Copy package definition and installed production dependencies from builder
+COPY package.json ./
+COPY --from=builder /app/node_modules ./node_modules
 
-# Install ONLY production dependencies to keep the image lightweight
-RUN npm ci --only=production
+# Prune devDependencies to keep the runner image lightweight
+RUN npm prune --omit=dev
 
-# Copy the built/compiled assets from the builder stage
-# (Change "dist" if your build script outputs to "build", "out", etc.)
+# Copy compiled assets from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Explicitly create the assets directory so Docker doesn't mount 
-# your volume with broken root-only permissions
+# Create assets directory with proper permissions
 RUN mkdir -p /app/assets
 
-# Expose port 3000 (which matches your Express server config)
+# Expose port 3000 (Express server)
 EXPOSE 3000
 
-# Run the compiled backend production server
+# Run the backend production server
 CMD ["npm", "start"]
