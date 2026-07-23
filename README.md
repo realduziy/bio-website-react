@@ -1,6 +1,6 @@
 # Portfolio & Profile Hub
 
-This is a personal profile and interactive portfolio website. It features live Discord presence integration, a Spotify-themed recently played showcase, a project catalog, a persistent guestbook, and a secure admin settings dashboard.
+This is a personal profile and interactive portfolio website. It features live Discord presence integration, a 24/7 background music scrobble & track tracker (Spotify + Last.fm), a personal blog & developer logbook, a project catalog, a persistent guestbook, and a secure admin settings dashboard.
 
 > 🛠️ **Co-Created with AI**  
 > This application was designed and built with the assistance of Google AI Studio and Gemini models. If you are preparing to deploy this in a production environment, it is recommended to review configuration variables, set custom administrative credentials, and audit the security rules as needed for your setup.
@@ -11,29 +11,33 @@ This is a personal profile and interactive portfolio website. It features live D
 
 - **Home & Splash Control**: Clean entry screen containing an epilepsy hazard warning and interactive controls. autoplays background cosmic media (video looping and ambient background music) simultaneously upon activation.
 - **Autoplay Autoselection**: Smooth background video (`background.mp4`) and soundtrack track (`background_music.mp3`) managed locally from the `/assets` folder. The server includes automatic downloader scripts to grab fallback media on startup if they are missing or empty.
+- **24/7 Music Tracking & Top Tracks**: Continuous background synchronization polling Last.fm API scrobbles and Lanyard Discord Spotify status. Tracks recently played songs and automatically computes top played tracks even when no users are browsing the website.
+- **Personal Blog & Logbook**: Built-in blogging system featuring Markdown post rendering, category filters, and full Admin CRUD controls, stored in `/assets/posts.json`.
 - **Discord & Spotify Integration**: Displays your live Discord status and Spotify activity in real-time using Lanyard API widgets.
 - **Extracted Bios & Socials**: Modular profile records located in a single data module for instant edits.
 - **Projects Tab**: Filtering cards showing professional achievements, code repositories, or server specs.
 - **Guestbook Tab**: A durable guestbook storing visitor logs and message entries. All fields are sanitized with client side `DOMPurify` before rendering to prevent malicious HTML/JS injection.
-- **Admin Dashboard**: Manage and update your linked Discord account ID, Application Client ID, and Client Secret from an active visual UI, authenticated securely using environmental credential verification.
+- **Admin Dashboard**: Manage and update your linked Discord account ID, Last.fm username, Application Client ID, Client Secret, and blog posts securely from an active UI.
 - **IP & Fingerprint Visitor Counter**: Clean, live count in the header tracking all unique page visitors.
-- **Robust Express Backend**: Equipped with strict security middlewares (`helmet`, `cors`) and rate limiters on crucial routes to prevent malicious flood attacks or spam.
+- **Single-Folder Persistence (`/assets`)**: All server data files (`discord_config.json`, `visitor_count.json`, `recently_played.json`, `top_tracks.json`, `posts.json`) and media assets (`background.mp4`, `background_music.mp3`) are stored in the `/assets` directory for easy Docker volume mounting.
+- **Robust Express Backend**: Equipped with strict security middlewares (`helmet`, `cors`), `trust proxy` support for reverse proxies/Cloud Run, and rate limiters on crucial routes to prevent malicious flood attacks or spam.
 
 ---
 
 ## 📂 Project Structure Map
 
-- **`/server.ts`**: Express backend entry point managing the static server, server-side visitor logs, persistent guestbook entries, rate limiting, secure admin endpoints, and dynamic configurations.
+- **`/server.ts`**: Express backend entry point managing static file serving, 24/7 background music scrobble sync, blog REST endpoints, visitor count logging, rate limiting, and admin configuration endpoints.
 - **`/src/App.tsx`**: Main UI coordinate panel coordinating user navigation, sound/video play states, loading states, and custom cursor configurations.
-- **`/src/types.ts`**: TypeScript specifications governing Discord presence activity configurations, guestbook records, and asset payloads.
+- **`/src/types.ts`**: TypeScript specifications governing Discord presence activity configurations, guestbook records, blog posts, and track payloads.
 - **`/src/data/bioData.tsx`**: The exact file where you can modify your social links, nickname, description text, and specific project items.
 - **`/src/components/`**:
   * `DiscordPresenceWidget.tsx`: Fetches and processes real-time activity and custom statuses using the Lanyard API websocket endpoints.
-  * `RecentlyPlayedWidget.tsx`: Displays current or recently played Spotify tracks.
+  * `RecentlyPlayedWidget.tsx`: Displays current and recently played tracks, as well as top played song rankings.
 - **`/src/components/pages/`**:
   * `ProjectsTab.tsx`: Modular projects browser tab with interactive category filtering.
+  * `BlogPage.tsx`: Personal blog and developer logbook interface with Markdown rendering.
   * `GuestbookTab.tsx`: Secure message submission form and list rendering with local/server persistence.
-  * `AdminTab.tsx`: Credentials input dashboard to update configuration settings on the fly.
+  * `AdminTab.tsx`: Credentials input dashboard to update configuration settings and manage blog posts on the fly.
 - **`/src/utils/visitor.ts`**: Minimal, non-invasive client-side visitor identification payload generator.
 
 ---
@@ -54,6 +58,7 @@ To run this application locally, ensure you have [Node.js](https://nodejs.org/) 
    ```
    Provide your fallback defaults:
    - `DEFAULT_DISCORD_ID`: Sets your default Discord Snowflake user ID (e.g., `1025531959736860714`).
+   - `LASTFM_USERNAME`: Sets your optional Last.fm username for 24/7 background scrobble sync.
    - `ADMIN_USERNAME_HASH`: The administrative username (plaintext or SHA-256 hash) used to sign into the Admin panel (e.g. `admin`).
    - `ADMIN_PASSWORD_HASH`: The administrative password (plaintext or SHA-256 hash) used to sign into the Admin panel (e.g. `MySecurePassword!`).
 
@@ -70,11 +75,13 @@ To run this application locally, ensure you have [Node.js](https://nodejs.org/) 
 ### Modifying Bios, Social Profiles, and Media Channels
 Most of your personal text, project data, and external link tags are separated into **`src/data/bioData.tsx`**. Open this file and edit the main constants directly to customize your brand presence and project statistics.
 
-### Customizing Wallpaper & Ambient Tracks
-Open the `/assets` folder at the root directory:
+### Customizing Wallpaper, Ambient Tracks & Data Storage
+All media files and persistent data files reside in the `/assets` folder at the root directory:
 - **`background.mp4`**: Your custom video background.
 - **`background_music.mp3`**: The ambient portfolio background track.
-- **`custom_cursor.png`**: The PNG texture used for the personalized circular landing cursor locator.
+- **`discord_config.json`**: Server configuration storing Discord ID and Last.fm username.
+- **`posts.json`**: Stored blog & logbook entries.
+- **`recently_played.json` & `top_tracks.json`**: Automatically maintained 24/7 music tracking logs.
 
 ---
 
@@ -119,6 +126,13 @@ For internet-facing servers, proxy requests through Nginx and secure your domain
    sudo systemctl reload nginx
    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
    ```
+
+<img width="1908" height="881" alt="screencapture-duziy-xyz-2026-06-20-15_10_03" src="https://github.com/user-attachments/assets/3f2fd0a6-fb16-4781-8d50-045be6f0034f" />
+<img width="1908" height="1628" alt="screencapture-duziy-xyz-2026-06-20-15_10_46" src="https://github.com/user-attachments/assets/082841c2-4fa8-48f5-be57-8d5add4f1437" />
+<img width="1908" height="881" alt="screencapture-duziy-xyz-about-2026-06-20-15_11_10" src="https://github.com/user-attachments/assets/4979bea8-21ba-4a46-a1d2-d00f69dba445" />
+<img width="1908" height="881" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_24" src="https://github.com/user-attachments/assets/19c9fcd7-5e33-4e3d-b58a-c6188529155f" />
+<img width="1908" height="922" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_44" src="https://github.com/user-attachments/assets/3ee897d2-cdcb-44b0-8e05-d9616f621910" />
+
 
 <img width="1908" height="881" alt="screencapture-duziy-xyz-2026-06-20-15_10_03" src="https://github.com/user-attachments/assets/3f2fd0a6-fb16-4781-8d50-045be6f0034f" />
 <img width="1908" height="1628" alt="screencapture-duziy-xyz-2026-06-20-15_10_46" src="https://github.com/user-attachments/assets/082841c2-4fa8-48f5-be57-8d5add4f1437" />
