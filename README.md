@@ -127,13 +127,14 @@ For internet-facing servers, proxy requests through Nginx and secure your domain
    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
    ```
 
-<img width="1919" height="1079" alt="Screenshot_9" src="https://github.com/user-attachments/assets/34a86e2e-8b9c-4312-a20b-23197f4807bf" />
-<img width="1918" height="1079" alt="Screenshot_8" src="https://github.com/user-attachments/assets/eea6bd2a-41a6-461f-91ec-42fd64c911da" />
-<img width="1919" height="1079" alt="Screenshot_7" src="https://github.com/user-attachments/assets/c821e2a8-02ba-4521-9226-209c6190e6a4" />
-<img width="1916" height="1078" alt="Screenshot_6" src="https://github.com/user-attachments/assets/03876245-a03e-4a5c-99bd-dfb2660920df" />
-<img width="1919" height="1079" alt="Screenshot_5" src="https://github.com/user-attachments/assets/136ea6bb-94de-43fa-abf4-5aa5cf387f0b" />
-<img width="1919" height="1079" alt="Screenshot_4" src="https://github.com/user-attachments/assets/eae5a441-e114-4721-b323-a1af0cea6cc9" />
-<img width="1919" height="1079" alt="Screenshot_3" src="https://github.com/user-attachments/assets/3c450e94-fc74-4b37-bfa5-145f3f01a14c" />
-<img width="1919" height="1079" alt="Screenshot_1" src="https://github.com/user-attachments/assets/2887f841-2cb0-4f5c-b2bb-349ba243d43c" />
-<img width="1919" height="1079" alt="Screenshot_2" src="https://github.com/user-attachments/assets/21d07d8a-7d82-4985-819b-d1ff4aa17798" />
+<img width="1919" height="1079" alt="Screenshot_3" src="https://github.com/user-attachments/assets/ee5dba59-481c-45a7-8c6b-dab328afd2b2" />
+<img width="1919" height="1079" alt="Screenshot_9" src="https://github.com/user-attachments/assets/af78d0b1-16e1-4a77-8d2f-cf2828a87586" />
+<img width="1919" height="1079" alt="Screenshot_1" src="https://github.com/user-attachments/assets/16bfc997-29e4-435a-b64a-bcc45eb2d8fa" />
+<img width="1919" height="1079" alt="Screenshot_2" src="https://github.com/user-attachments/assets/a6e9dbb9-1ebe-403d-b4e9-a92ecb8da92e" />
+
+<img width="1918" height="1079" alt="Screenshot_8" src="https://github.com/user-attachments/assets/a25e1002-2f42-4e29-b99b-3268bc1eaee3" />
+<img width="1919" height="1079" alt="Screenshot_7" src="https://github.com/user-attachments/assets/405ad6be-6cd6-44fe-b69b-44c1218a69e7" />
+<img width="1916" height="1078" alt="Screenshot_6" src="https://github.com/user-attachments/assets/799385b6-5626-46b8-8d17-45bb9d9cb380" />
+<img width="1919" height="1079" alt="Screenshot_5" src="https://github.com/user-attachments/assets/73d52a20-86e0-409f-9617-c42d4d5957e0" />
+<img width="1919" height="1079" alt="Screenshot_4" src="https://github.com/user-attachments/assets/bf7891f4-ca2e-4a9c-9887-e9b40c32594b" />
 
