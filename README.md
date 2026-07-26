@@ -44,29 +44,66 @@ This is a personal profile and interactive portfolio website. It features live D
 
 ## 🛠️ Local Installation & Development
 
-To run this application locally, ensure you have [Node.js](https://nodejs.org/) installed, then follow these steps:
+To run this application locally, ensure you have [Node.js](https://nodejs.org/) (v18 or higher) installed on your computer, then follow these simple steps:
 
 1. **Install Dependencies**:
+   Open a terminal in the project folder and run:
    ```bash
    npm install
    ```
 
 2. **Configure Environment Variables**:
-   Copy `.env.example` to a new `.env` file in the root directory:
+   Copy `.env.example` to create your `.env` configuration file:
    ```bash
    cp .env.example .env
    ```
-   Provide your fallback defaults:
-   - `DEFAULT_DISCORD_ID`: Sets your default Discord Snowflake user ID (e.g., `1025531959736860714`).
-   - `LASTFM_USERNAME`: Sets your optional Last.fm username for 24/7 background scrobble sync.
-   - `ADMIN_USERNAME_HASH`: The administrative username (plaintext or SHA-256 hash) used to sign into the Admin panel (e.g. `admin`).
-   - `ADMIN_PASSWORD_HASH`: The administrative password (plaintext or SHA-256 hash) used to sign into the Admin panel (e.g. `MySecurePassword!`).
+
+   Open `.env` in any text editor and fill in your settings:
+   - `PORT`: The port number the website runs on (default is `3000`).
+   - `DEFAULT_DISCORD_ID`: Your Discord User ID (Snowflake) for live status & Spotify widget tracking (e.g., `1025531959736860714`).
+   - `LASTFM_USERNAME`: *(Optional)* Your Last.fm username for 24/7 background music scrobble tracking and top tracks calculation.
+
+   ---
+
+   ### 🔐 Setting up Admin Credentials (`ADMIN_USERNAME_HASH` & `ADMIN_PASSWORD_HASH`)
+   To access the **Admin Panel** on your website (to edit blog posts and settings), you must configure your username and password in `.env`. You can set them using either of two methods:
+
+   #### Method 1: Plain Text (Easiest)
+   Type your chosen username and password directly into `.env`:
+   ```env
+   ADMIN_USERNAME_HASH=admin
+   ADMIN_PASSWORD_HASH=mySecretPassword123
+   ```
+   *Logging in:* Simply type `admin` and `mySecretPassword123` into the Admin tab on the website.
+
+   #### Method 2: SHA-256 Hash (Recommended for Higher Security)
+   Convert your username and password into a formatted SHA-256 hash string before placing them into `.env`.
+
+   **How to convert username/password to SHA-256:**
+   - **Using Terminal (Linux / Mac / Git Bash):**
+     ```bash
+     echo -n "admin" | sha256sum
+     # Output: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+
+     echo -n "mySecretPassword123" | sha256sum
+     # Output: dbd9225d3090967a5f6e2b2f6ef8292f70b43ef8167f082cf61a5e305e717a6a
+     ```
+   - **Using Online Generators:** Search for any "SHA256 generator" online, paste your text, and copy the 64-character hash output.
+
+   Paste the generated hash values into `.env`:
+   ```env
+   ADMIN_USERNAME_HASH=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+   ADMIN_PASSWORD_HASH=dbd9225d3090967a5f6e2b2f6ef8292f70b43ef8167f082cf61a5e305e717a6a
+   ```
+   *Logging in:* On the website Admin tab, you still log in using your normal plain text username (`admin`) and password (`mySecretPassword123`). The server automatically hashes what you type in the login form and compares it against the hash in `.env`.
+
+   ---
 
 3. **Start the Development Server**:
    ```bash
    npm run dev
    ```
-   Open your browser and navigate to **`http://localhost:3000`**. Changes you make will refresh live in the viewport.
+   Open your web browser and go to **`http://localhost:3000`**. You will see the live website!
 
 ---
 
