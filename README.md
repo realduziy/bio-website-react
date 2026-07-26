@@ -131,6 +131,8 @@ For internet-facing servers, proxy requests through Nginx and secure your domain
 <img width="1919" height="1079" alt="Screenshot_9" src="https://github.com/user-attachments/assets/af78d0b1-16e1-4a77-8d2f-cf2828a87586" />
 <img width="1919" height="1079" alt="Screenshot_1" src="https://github.com/user-attachments/assets/16bfc997-29e4-435a-b64a-bcc45eb2d8fa" />
 <img width="1919" height="1079" alt="Screenshot_2" src="https://github.com/user-attachments/assets/a6e9dbb9-1ebe-403d-b4e9-a92ecb8da92e" />
+<img width="1919" height="1079" alt="Screenshot_10" src="https://github.com/user-attachments/assets/834575de-8a6f-4d38-91f7-6d154cb89ab9" />
+
 
 <img width="1918" height="1079" alt="Screenshot_8" src="https://github.com/user-attachments/assets/a25e1002-2f42-4e29-b99b-3268bc1eaee3" />
 <img width="1919" height="1079" alt="Screenshot_7" src="https://github.com/user-attachments/assets/405ad6be-6cd6-44fe-b69b-44c1218a69e7" />
