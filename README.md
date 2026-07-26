@@ -2,6 +2,9 @@
 
 Hey! Welcome to my personal website and portfolio. It features live Discord status integration, a music tracker that keeps tabs on what I'm listening to (Spotify + Last.fm), a personal blog/logbook, a projects showcase, a guestbook for visitors to leave messages, and an admin panel to manage everything.
 
+> 🛠️ **Built with AI**  
+> Just a heads up — this project was co-created using AI! Think of it more as a fun proof of concept and starter template rather than a strict enterprise production app. You should review the code yourself to catch any edge cases or little bugs that might have been missed. I run it live myself and it works great, but as always, deploy and run it in production at your own risk!
+
 ---
 
 ## ✨ Features
