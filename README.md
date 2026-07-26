@@ -127,15 +127,13 @@ For internet-facing servers, proxy requests through Nginx and secure your domain
    sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
    ```
 
-<img width="1908" height="881" alt="screencapture-duziy-xyz-2026-06-20-15_10_03" src="https://github.com/user-attachments/assets/3f2fd0a6-fb16-4781-8d50-045be6f0034f" />
-<img width="1908" height="1628" alt="screencapture-duziy-xyz-2026-06-20-15_10_46" src="https://github.com/user-attachments/assets/082841c2-4fa8-48f5-be57-8d5add4f1437" />
-<img width="1908" height="881" alt="screencapture-duziy-xyz-about-2026-06-20-15_11_10" src="https://github.com/user-attachments/assets/4979bea8-21ba-4a46-a1d2-d00f69dba445" />
-<img width="1908" height="881" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_24" src="https://github.com/user-attachments/assets/19c9fcd7-5e33-4e3d-b58a-c6188529155f" />
-<img width="1908" height="922" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_44" src="https://github.com/user-attachments/assets/3ee897d2-cdcb-44b0-8e05-d9616f621910" />
+<img width="1919" height="1079" alt="Screenshot_9" src="https://github.com/user-attachments/assets/34a86e2e-8b9c-4312-a20b-23197f4807bf" />
+<img width="1918" height="1079" alt="Screenshot_8" src="https://github.com/user-attachments/assets/eea6bd2a-41a6-461f-91ec-42fd64c911da" />
+<img width="1919" height="1079" alt="Screenshot_7" src="https://github.com/user-attachments/assets/c821e2a8-02ba-4521-9226-209c6190e6a4" />
+<img width="1916" height="1078" alt="Screenshot_6" src="https://github.com/user-attachments/assets/03876245-a03e-4a5c-99bd-dfb2660920df" />
+<img width="1919" height="1079" alt="Screenshot_5" src="https://github.com/user-attachments/assets/136ea6bb-94de-43fa-abf4-5aa5cf387f0b" />
+<img width="1919" height="1079" alt="Screenshot_4" src="https://github.com/user-attachments/assets/eae5a441-e114-4721-b323-a1af0cea6cc9" />
+<img width="1919" height="1079" alt="Screenshot_3" src="https://github.com/user-attachments/assets/3c450e94-fc74-4b37-bfa5-145f3f01a14c" />
+<img width="1919" height="1079" alt="Screenshot_1" src="https://github.com/user-attachments/assets/2887f841-2cb0-4f5c-b2bb-349ba243d43c" />
+<img width="1919" height="1079" alt="Screenshot_2" src="https://github.com/user-attachments/assets/21d07d8a-7d82-4985-819b-d1ff4aa17798" />
 
-
-<img width="1908" height="881" alt="screencapture-duziy-xyz-2026-06-20-15_10_03" src="https://github.com/user-attachments/assets/3f2fd0a6-fb16-4781-8d50-045be6f0034f" />
-<img width="1908" height="1628" alt="screencapture-duziy-xyz-2026-06-20-15_10_46" src="https://github.com/user-attachments/assets/082841c2-4fa8-48f5-be57-8d5add4f1437" />
-<img width="1908" height="881" alt="screencapture-duziy-xyz-about-2026-06-20-15_11_10" src="https://github.com/user-attachments/assets/4979bea8-21ba-4a46-a1d2-d00f69dba445" />
-<img width="1908" height="881" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_24" src="https://github.com/user-attachments/assets/19c9fcd7-5e33-4e3d-b58a-c6188529155f" />
-<img width="1908" height="922" alt="screencapture-duziy-xyz-adminportaldev-2026-06-20-15_11_44" src="https://github.com/user-attachments/assets/3ee897d2-cdcb-44b0-8e05-d9616f621910" />
