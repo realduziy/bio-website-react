@@ -17,6 +17,8 @@ interface Track {
   albumArtUrl?: string;
   playedAt: number;
   playCount?: number;
+  url?: string;
+  nowPlaying?: boolean;
 }
 
 interface RecentlyPlayedWidgetProps {
@@ -122,49 +124,66 @@ export default function RecentlyPlayedWidget({
                 <Disc className="w-7 h-7 mb-3 text-stone-600 animate-spin-slow animate-pulse" />
                 <span>NO RECENTLY PLAYED TRACKS</span>
                 <span className="text-[9px] text-stone-500 uppercase tracking-widest mt-1">
-                  Play music on Spotify with Discord open to stream
+                  Scrobble music on Last.fm to stream your listening history
                 </span>
               </div>
             ) : (
-              displayedRecentSongs.map((track) => (
-                <div
-                  key={`${track.trackId}-${track.playedAt}`}
-                  className="group flex items-center justify-between p-2.5 rounded-lg bg-white/[0.01] hover:bg-white/[0.04] border border-transparent hover:border-white/5 transition-all duration-200 animate-fade-in"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
-                    <AlbumArtWithFallback
-                      url={track.albumArtUrl}
-                      album={track.album}
-                    />
+              displayedRecentSongs.map((track) => {
+                const trackLink =
+                  track.url ||
+                  (track.trackId?.startsWith("http")
+                    ? track.trackId
+                    : `https://www.last.fm/search?q=${encodeURIComponent(
+                        `${track.song} ${track.artist}`
+                      )}`);
 
-                    <div className="min-w-0 flex-1 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs sm:text-sm font-semibold text-stone-200 group-hover:text-cyan-300 transition-colors truncate block">
-                          {track.song}
+                return (
+                  <div
+                    key={`${track.trackId}-${track.playedAt}`}
+                    className="group flex items-center justify-between p-2.5 rounded-lg bg-white/[0.01] hover:bg-white/[0.04] border border-transparent hover:border-white/5 transition-all duration-200 animate-fade-in"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
+                      <AlbumArtWithFallback
+                        url={track.albumArtUrl}
+                        album={track.album}
+                      />
+
+                      <div className="min-w-0 flex-1 text-left">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs sm:text-sm font-semibold text-stone-200 group-hover:text-cyan-300 transition-colors truncate block">
+                            {track.song}
+                          </span>
+                          <a
+                            href={trackLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-cyan-400 transition-all shrink-0 animate-fade-in"
+                            title="Open track"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                        <span className="text-[11px] sm:text-xs text-stone-400 truncate block font-sans mt-0.5">
+                          {track.artist
+                            ? track.artist.replace(/;/g, ", ")
+                            : "Unknown"}
                         </span>
-                        <a
-                          href={`https://open.spotify.com/track/${track.trackId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-cyan-400 transition-all shrink-0 animate-fade-in"
-                          title="Open on Spotify"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
                       </div>
-                      <span className="text-[11px] sm:text-xs text-stone-400 truncate block font-sans mt-0.5">
-                        {track.artist
-                          ? track.artist.replace(/;/g, ", ")
-                          : "Unknown"}
-                      </span>
                     </div>
-                  </div>
 
-                  <span className="text-[10px] font-mono text-stone-400 shrink-0 select-none uppercase tracking-wider text-right font-medium">
-                    {formatTimeAgo(track.playedAt)}
-                  </span>
-                </div>
-              ))
+                    {track.nowPlaying ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-mono text-emerald-400 font-bold uppercase tracking-wider shrink-0 animate-pulse">
+                        <Disc className="w-2.5 h-2.5 animate-spin" />
+                        Scrobbling
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-stone-400 shrink-0 select-none uppercase tracking-wider text-right font-medium">
+                        {formatTimeAgo(track.playedAt)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })
             )}
           </motion.div>
         ) : (
@@ -185,54 +204,64 @@ export default function RecentlyPlayedWidget({
                 <Heart className="w-7 h-7 mb-3 text-stone-600 animate-pulse" />
                 <span>NO TOP TRACKS LOGGED YET</span>
                 <span className="text-[9px] text-stone-500 uppercase tracking-widest mt-1 text-center max-w-xs">
-                  Your listen history will autocompute play stats over time
+                  Connect Last.fm username to display your top listened tracks
                 </span>
               </div>
             ) : (
-              topSongs.map((track) => (
-                <div
-                  key={track.trackId}
-                  className="group flex items-center justify-between p-2.5 rounded-lg bg-white/[0.01] hover:bg-white/[0.04] border border-transparent hover:border-white/5 transition-all duration-200 animate-fade-in"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
-                    <AlbumArtWithFallback
-                      url={track.albumArtUrl}
-                      album={track.album}
-                    />
+              topSongs.map((track) => {
+                const trackLink =
+                  track.url ||
+                  (track.trackId?.startsWith("http")
+                    ? track.trackId
+                    : `https://www.last.fm/search?q=${encodeURIComponent(
+                        `${track.song} ${track.artist}`
+                      )}`);
 
-                    <div className="min-w-0 flex-1 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs sm:text-sm font-semibold text-stone-200 group-hover:text-rose-300 transition-colors truncate block">
-                          {track.song}
+                return (
+                  <div
+                    key={`${track.trackId}-${track.song}`}
+                    className="group flex items-center justify-between p-2.5 rounded-lg bg-white/[0.01] hover:bg-white/[0.04] border border-transparent hover:border-white/5 transition-all duration-200 animate-fade-in"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
+                      <AlbumArtWithFallback
+                        url={track.albumArtUrl}
+                        album={track.album}
+                      />
+
+                      <div className="min-w-0 flex-1 text-left">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs sm:text-sm font-semibold text-stone-200 group-hover:text-rose-300 transition-colors truncate block">
+                            {track.song}
+                          </span>
+                          <a
+                            href={trackLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-rose-400 transition-all shrink-0 animate-fade-in"
+                            title="Open track"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                        <span className="text-[11px] sm:text-xs text-stone-400 truncate block font-sans mt-0.5">
+                          {track.artist
+                            ? track.artist.replace(/;/g, ", ")
+                            : "Unknown"}
                         </span>
-                        <a
-                          href={`https://open.spotify.com/track/${track.trackId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-rose-400 transition-all shrink-0 animate-fade-in"
-                          title="Open on Spotify"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
                       </div>
-                      <span className="text-[11px] sm:text-xs text-stone-400 truncate block font-sans mt-0.5">
-                        {track.artist
-                          ? track.artist.replace(/;/g, ", ")
-                          : "Unknown"}
-                      </span>
                     </div>
-                  </div>
 
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/15 text-[9px] font-mono text-rose-300 font-bold uppercase tracking-wide shrink-0">
-                    <Sparkles className="w-2.5 h-2.5 text-rose-400 shrink-0" />
-                    <span>
-                      {track.playCount !== undefined
-                        ? `${track.playCount}x`
-                        : "TOP"}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/15 text-[9px] font-mono text-rose-300 font-bold uppercase tracking-wide shrink-0">
+                      <Sparkles className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+                      <span>
+                        {track.playCount !== undefined && track.playCount > 0
+                          ? `${track.playCount} plays`
+                          : "TOP"}
+                      </span>
                     </span>
-                  </span>
-                </div>
-              ))
+                  </div>
+                );
+              })
             )}
           </motion.div>
         )}
