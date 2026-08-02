@@ -341,6 +341,30 @@ async function startServer() {
   const recentlyPlayedFilePath = path.join(storageDir, "recently_played.json");
   const topTracksFilePath = path.join(storageDir, "top_tracks.json");
 
+  // Load local recently played tracks from disk
+  let recentlyPlayed: any[] = [];
+  if (fs.existsSync(recentlyPlayedFilePath)) {
+    try {
+      recentlyPlayed = JSON.parse(
+        fs.readFileSync(recentlyPlayedFilePath, "utf8"),
+      );
+    } catch (_) {}
+  }
+  if (!Array.isArray(recentlyPlayed)) {
+    recentlyPlayed = [];
+  }
+
+  // Load local top tracks from disk
+  let topTracks: any[] = [];
+  if (fs.existsSync(topTracksFilePath)) {
+    try {
+      topTracks = JSON.parse(fs.readFileSync(topTracksFilePath, "utf8"));
+    } catch (_) {}
+  }
+  if (!Array.isArray(topTracks)) {
+    topTracks = [];
+  }
+
   // In-Memory Fast Cache of globally active Discord & Music configuration
   const cachedDiscordConfig = {
     discordId: (process.env.DEFAULT_DISCORD_ID || "1025531959736860714").trim(),
@@ -451,33 +475,6 @@ async function startServer() {
     );
   }
 
-  // Loaded recently played list on startup (with dynamic fallbacks)
-  let recentlyPlayed: any[] = [];
-  if (fs.existsSync(recentlyPlayedFilePath)) {
-    try {
-      recentlyPlayed = JSON.parse(
-        fs.readFileSync(recentlyPlayedFilePath, "utf8"),
-      );
-    } catch (_) {}
-  }
-
-  // Set default tracks if empty (init to empty array to avoid unwanted placeholder records)
-  if (!Array.isArray(recentlyPlayed)) {
-    recentlyPlayed = [];
-  }
-
-  // Loaded top tracks list on startup (with play-count based metadata)
-  let topTracks: any[] = [];
-  if (fs.existsSync(topTracksFilePath)) {
-    try {
-      topTracks = JSON.parse(fs.readFileSync(topTracksFilePath, "utf8"));
-    } catch (_) {}
-  }
-
-  if (!Array.isArray(topTracks)) {
-    topTracks = [];
-  }
-
   // Public endpoint to read visitor count (High speed, read purely from RAM)
   app.get("/api/visitor/count", (req, res) => {
     res.setHeader(
@@ -533,19 +530,308 @@ async function startServer() {
     });
   });
 
-  // Public endpoint to read recently played Spotify / Last.fm songs
+  // Dynamic multi-source music tracking & local persistent storage engine
+  let isSyncing = false;
+  let lastSyncTimestamp = 0;
+
+  async function syncMusicTracks() {
+    if (isSyncing) return;
+    if (Date.now() - lastSyncTimestamp < 3000) return;
+
+    isSyncing = true;
+    lastSyncTimestamp = Date.now();
+
+    try {
+      let updated = false;
+
+      // 1. Fetch from Last.fm if username is configured
+      if (cachedDiscordConfig.lastfmUsername) {
+        try {
+          const lfmUser = cachedDiscordConfig.lastfmUsername;
+          const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(lfmUser)}&api_key=b25752206e578c2e1f69201a073f13dd&format=json&limit=20`;
+          const lfmRes = await fetch(url);
+
+          if (lfmRes.ok) {
+            const lfmData: any = await lfmRes.json();
+            const tracks = lfmData?.recenttracks?.track;
+            if (Array.isArray(tracks) && tracks.length > 0) {
+              const reversed = [...tracks].reverse();
+
+              for (const t of reversed) {
+                const song = t.name;
+                const artist =
+                  typeof t.artist === "object"
+                    ? t.artist["#text"] || t.artist.name
+                    : t.artist;
+                const album =
+                  typeof t.album === "object"
+                    ? t.album["#text"] || t.album.name
+                    : t.album || "";
+
+                if (!song || !artist) continue;
+
+                let albumArtUrl = "";
+                if (Array.isArray(t.image)) {
+                  const imgObj =
+                    t.image.find((i: any) => i.size === "extralarge") ||
+                    t.image.find((i: any) => i.size === "large") ||
+                    t.image[2] ||
+                    t.image[0];
+                  if (imgObj && imgObj["#text"]) {
+                    albumArtUrl = imgObj["#text"];
+                  }
+                }
+
+                const trackId =
+                  t.mbid ||
+                  `${song.toLowerCase().replace(/\s+/g, "-")}-${artist.toLowerCase().replace(/\s+/g, "-")}`;
+                const playedAt = t.date?.uts
+                  ? parseInt(t.date.uts, 10) * 1000
+                  : Date.now();
+                const nowPlaying = t["@attr"]?.nowplaying === "true";
+                const trackUrl =
+                  t.url ||
+                  `https://www.last.fm/music/${encodeURIComponent(artist)}/_/${encodeURIComponent(song)}`;
+
+                const existingIdx = recentlyPlayed.findIndex(
+                  (rp: any) =>
+                    rp.song.toLowerCase() === song.toLowerCase() &&
+                    rp.artist.toLowerCase() === artist.toLowerCase(),
+                );
+
+                if (existingIdx === -1) {
+                  const newTrack = {
+                    trackId,
+                    song,
+                    artist,
+                    album,
+                    albumArtUrl,
+                    playedAt,
+                    nowPlaying,
+                    url: trackUrl,
+                  };
+                  recentlyPlayed.unshift(newTrack);
+                  updated = true;
+
+                  const topIdx = topTracks.findIndex(
+                    (top: any) =>
+                      top.song.toLowerCase() === song.toLowerCase() &&
+                      top.artist.toLowerCase() === artist.toLowerCase(),
+                  );
+
+                  if (topIdx !== -1) {
+                    topTracks[topIdx].playCount =
+                      (topTracks[topIdx].playCount || 1) + 1;
+                    topTracks[topIdx].playedAt = playedAt;
+                    if (albumArtUrl)
+                      topTracks[topIdx].albumArtUrl = albumArtUrl;
+                  } else {
+                    topTracks.push({
+                      trackId,
+                      song,
+                      artist,
+                      album,
+                      albumArtUrl,
+                      playedAt,
+                      playCount: 1,
+                      url: trackUrl,
+                    });
+                  }
+                } else {
+                  if (recentlyPlayed[existingIdx].nowPlaying !== nowPlaying) {
+                    recentlyPlayed[existingIdx].nowPlaying = nowPlaying;
+                    updated = true;
+                  }
+                }
+              }
+            }
+          }
+
+          // Also fetch top tracks directly from Last.fm to populate topTracks if available
+          const topUrl = `https://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${encodeURIComponent(lfmUser)}&api_key=b25752206e578c2e1f69201a073f13dd&format=json&limit=20&period=7day`;
+          const topRes = await fetch(topUrl);
+          if (topRes.ok) {
+            const topData: any = await topRes.json();
+            const rawTop = topData?.toptracks?.track;
+            if (Array.isArray(rawTop) && rawTop.length > 0) {
+              for (const t of rawTop) {
+                const song = t.name;
+                const artist =
+                  typeof t.artist === "object"
+                    ? t.artist["#text"] || t.artist.name
+                    : t.artist;
+                const album =
+                  typeof t.album === "object"
+                    ? t.album["#text"] || t.album.name
+                    : t.album || "";
+                if (!song || !artist) continue;
+
+                let albumArtUrl = "";
+                if (Array.isArray(t.image)) {
+                  const imgObj =
+                    t.image.find((i: any) => i.size === "extralarge") ||
+                    t.image.find((i: any) => i.size === "large") ||
+                    t.image[2] ||
+                    t.image[0];
+                  if (imgObj && imgObj["#text"]) albumArtUrl = imgObj["#text"];
+                }
+
+                const trackId =
+                  t.mbid ||
+                  `${song.toLowerCase().replace(/\s+/g, "-")}-${artist.toLowerCase().replace(/\s+/g, "-")}`;
+                const playCount = parseInt(t.playcount || "1", 10);
+                const trackUrl =
+                  t.url ||
+                  `https://www.last.fm/music/${encodeURIComponent(artist)}/_/${encodeURIComponent(song)}`;
+
+                const existingTopIdx = topTracks.findIndex(
+                  (top: any) =>
+                    top.song.toLowerCase() === song.toLowerCase() &&
+                    top.artist.toLowerCase() === artist.toLowerCase(),
+                );
+
+                if (existingTopIdx !== -1) {
+                  topTracks[existingTopIdx].playCount = Math.max(
+                    topTracks[existingTopIdx].playCount || 0,
+                    playCount,
+                  );
+                  if (albumArtUrl)
+                    topTracks[existingTopIdx].albumArtUrl = albumArtUrl;
+                } else {
+                  topTracks.push({
+                    trackId,
+                    song,
+                    artist,
+                    album,
+                    albumArtUrl,
+                    playedAt: Date.now(),
+                    playCount,
+                    url: trackUrl,
+                  });
+                  updated = true;
+                }
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn("[Music Sync] Last.fm sync warning:", err.message);
+        }
+      }
+
+      // 2. Poll Lanyard for live Spotify status if Discord ID is configured
+      if (cachedDiscordConfig.discordId) {
+        try {
+          const discordId = cachedDiscordConfig.discordId;
+          const res = await fetch(
+            `https://api.lanyard.rest/v1/users/${discordId}`,
+          );
+          if (res.ok) {
+            const json: any = await res.json();
+            if (json.success && json.data) {
+              const d = json.data;
+              if (d.listening_to_spotify && d.spotify) {
+                const s = d.spotify;
+                const trackId =
+                  s.track_id ||
+                  `${s.song.toLowerCase().replace(/\s+/g, "-")}-${s.artist.toLowerCase().replace(/\s+/g, "-")}`;
+
+                const mostRecent = recentlyPlayed[0];
+                const isNew =
+                  !mostRecent ||
+                  mostRecent.song.toLowerCase() !== s.song.toLowerCase() ||
+                  mostRecent.artist.toLowerCase() !== s.artist.toLowerCase();
+
+                if (isNew) {
+                  const newTrack = {
+                    trackId,
+                    song: s.song,
+                    artist: s.artist,
+                    album: s.album,
+                    albumArtUrl: s.album_art_url,
+                    playedAt: Date.now(),
+                    nowPlaying: true,
+                    url: `https://open.spotify.com/track/${s.track_id}`,
+                  };
+
+                  recentlyPlayed.unshift(newTrack);
+                  updated = true;
+
+                  const topIdx = topTracks.findIndex(
+                    (top: any) =>
+                      top.song.toLowerCase() === s.song.toLowerCase() &&
+                      top.artist.toLowerCase() === s.artist.toLowerCase(),
+                  );
+
+                  if (topIdx !== -1) {
+                    topTracks[topIdx].playCount =
+                      (topTracks[topIdx].playCount || 1) + 1;
+                    topTracks[topIdx].playedAt = Date.now();
+                    if (s.album_art_url)
+                      topTracks[topIdx].albumArtUrl = s.album_art_url;
+                  } else {
+                    topTracks.push({
+                      trackId,
+                      song: s.song,
+                      artist: s.artist,
+                      album: s.album,
+                      albumArtUrl: s.album_art_url,
+                      playedAt: Date.now(),
+                      playCount: 1,
+                      url: `https://open.spotify.com/track/${s.track_id}`,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn("[Music Sync] Lanyard sync warning:", err.message);
+        }
+      }
+
+      // 3. Auto-Prune Old Info (keep storage light and clean)
+      if (recentlyPlayed.length > 25) {
+        recentlyPlayed = recentlyPlayed.slice(0, 25);
+        updated = true;
+      }
+
+      topTracks.sort(
+        (a: any, b: any) => (b.playCount || 0) - (a.playCount || 0),
+      );
+      if (topTracks.length > 30) {
+        topTracks = topTracks.slice(0, 30);
+        updated = true;
+      }
+
+      // 4. Save to local disk if anything changed
+      if (updated) {
+        await safeWriteFile(recentlyPlayedFilePath, recentlyPlayed);
+        await safeWriteFile(topTracksFilePath, topTracks);
+      }
+    } catch (err: any) {
+      console.error("[Music Sync] Error during track sync:", err.message);
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  // Background interval polling (runs every 10 seconds)
+  setInterval(syncMusicTracks, 10000);
+  setTimeout(syncMusicTracks, 1500);
+
+  // Public endpoint to read recently played songs
   app.get("/api/recently-played", async (req, res) => {
     try {
       await syncMusicTracks();
-    } catch (e) {}
+    } catch (_) {}
     res.json(recentlyPlayed);
   });
 
-  // Public endpoint to read real-time computed top played songs sorted by play frequency
+  // Public endpoint to read top tracks
   app.get("/api/top-tracks", async (req, res) => {
     try {
       await syncMusicTracks();
-    } catch (e) {}
+    } catch (_) {}
     res.json(topTracks);
   });
 
@@ -782,13 +1068,13 @@ async function startServer() {
 
       await safeWriteFile(configFilePath, updatedConfig);
 
+      // Trigger immediate sync on configuration change
+      syncMusicTracks();
+
       res.json({
         success: true,
         message: "Discord & Music configuration saved globally on server!",
       });
-
-      // Instantly trigger polling check on save to update presence right away
-      syncMusicTracks();
     } catch (err: any) {
       console.error("Error writing discord_config.json:", err);
       res
@@ -796,185 +1082,6 @@ async function startServer() {
         .json({ error: "Failed to persist configuration server-side." });
     }
   });
-
-  // Dynamic multi-source music tracking system (Last.fm scrobbles + Lanyard Spotify)
-  let isSyncing = false;
-  let lastSyncTimestamp = 0;
-
-  async function syncMusicTracks() {
-    if (isSyncing) return;
-    // Throttle syncs to no more than once every 4 seconds
-    if (Date.now() - lastSyncTimestamp < 4000) return;
-
-    isSyncing = true;
-    lastSyncTimestamp = Date.now();
-
-    try {
-      let updated = false;
-
-      // 1. Last.fm Integration (Preserves 24/7 scrobble history even when no visitors are on site)
-      if (cachedDiscordConfig.lastfmUsername) {
-        try {
-          const lfmUser = cachedDiscordConfig.lastfmUsername;
-          const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(lfmUser)}&api_key=b25752206e578c2e1f69201a073f13dd&format=json&limit=20`;
-          const lfmRes = await fetch(url);
-          if (lfmRes.ok) {
-            const lfmData: any = await lfmRes.json();
-            const tracks = lfmData?.recenttracks?.track;
-            if (Array.isArray(tracks) && tracks.length > 0) {
-              // Last.fm returns newest first. Reverse to process chronologically
-              const reversed = [...tracks].reverse();
-
-              for (const t of reversed) {
-                const song = t.name;
-                const artist = typeof t.artist === "object" ? t.artist["#text"] || t.artist.name : t.artist;
-                const album = typeof t.album === "object" ? t.album["#text"] : t.album || "";
-
-                if (!song || !artist) continue;
-
-                let albumArtUrl = "";
-                if (Array.isArray(t.image)) {
-                  const imgObj = t.image.find((i: any) => i.size === "extralarge") || t.image.find((i: any) => i.size === "large") || t.image[2] || t.image[0];
-                  if (imgObj && imgObj["#text"]) {
-                    albumArtUrl = imgObj["#text"];
-                  }
-                }
-
-                const trackId = t.mbid || `${song.toLowerCase()}-${artist.toLowerCase()}`;
-                const playedAt = t.date?.uts ? parseInt(t.date.uts, 10) * 1000 : Date.now();
-
-                // Check if song+artist is already recorded as most recent or in recentlyPlayed list
-                const existingIdx = recentlyPlayed.findIndex(
-                  (rp: any) => rp.song.toLowerCase() === song.toLowerCase() && rp.artist.toLowerCase() === artist.toLowerCase()
-                );
-
-                if (existingIdx === -1) {
-                  const newTrack = {
-                    trackId,
-                    song,
-                    artist,
-                    album,
-                    albumArtUrl,
-                    playedAt,
-                  };
-                  recentlyPlayed.unshift(newTrack);
-                  updated = true;
-
-                  // Update Top Tracks play count
-                  const topIdx = topTracks.findIndex(
-                    (top: any) => top.song.toLowerCase() === song.toLowerCase() && top.artist.toLowerCase() === artist.toLowerCase()
-                  );
-
-                  if (topIdx !== -1) {
-                    topTracks[topIdx].playCount = (topTracks[topIdx].playCount || 1) + 1;
-                    topTracks[topIdx].playedAt = playedAt;
-                    if (albumArtUrl) topTracks[topIdx].albumArtUrl = albumArtUrl;
-                  } else {
-                    topTracks.push({
-                      trackId,
-                      song,
-                      artist,
-                      album,
-                      albumArtUrl,
-                      playedAt,
-                      playCount: 1,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        } catch (err: any) {
-          console.warn("[Music Sync] Last.fm fetch warning:", err.message);
-        }
-      }
-
-      // 2. Poll Lanyard for live Discord / Spotify presence
-      if (cachedDiscordConfig.discordId) {
-        try {
-          const discordId = cachedDiscordConfig.discordId;
-          const res = await fetch(`https://api.lanyard.rest/v1/users/${discordId}`);
-          if (res.ok) {
-            const json: any = await res.json();
-            if (json.success && json.data) {
-              const d = json.data;
-              if (d.listening_to_spotify && d.spotify) {
-                const s = d.spotify;
-                const trackId = s.track_id || `${s.song.toLowerCase()}-${s.artist.toLowerCase()}`;
-
-                const mostRecent = recentlyPlayed[0];
-                const isNew = !mostRecent ||
-                  mostRecent.song.toLowerCase() !== s.song.toLowerCase() ||
-                  mostRecent.artist.toLowerCase() !== s.artist.toLowerCase();
-
-                if (isNew) {
-                  const newTrack = {
-                    trackId,
-                    song: s.song,
-                    artist: s.artist,
-                    album: s.album,
-                    albumArtUrl: s.album_art_url,
-                    playedAt: Date.now(),
-                  };
-
-                  recentlyPlayed.unshift(newTrack);
-                  updated = true;
-
-                  const topIdx = topTracks.findIndex(
-                    (top: any) => top.song.toLowerCase() === s.song.toLowerCase() && top.artist.toLowerCase() === s.artist.toLowerCase()
-                  );
-
-                  if (topIdx !== -1) {
-                    topTracks[topIdx].playCount = (topTracks[topIdx].playCount || 1) + 1;
-                    topTracks[topIdx].playedAt = Date.now();
-                    if (s.album_art_url) topTracks[topIdx].albumArtUrl = s.album_art_url;
-                  } else {
-                    topTracks.push({
-                      trackId,
-                      song: s.song,
-                      artist: s.artist,
-                      album: s.album,
-                      albumArtUrl: s.album_art_url,
-                      playedAt: Date.now(),
-                      playCount: 1,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        } catch (err: any) {
-          console.warn("[Music Sync] Lanyard fetch warning:", err.message);
-        }
-      }
-
-      // 3. Save state to disk if new tracks were logged
-      if (updated) {
-        recentlyPlayed = recentlyPlayed.slice(0, 20);
-
-        topTracks.sort((a: any, b: any) => {
-          if (b.playCount !== a.playCount) {
-            return b.playCount - a.playCount;
-          }
-          return b.playedAt - a.playedAt;
-        });
-        topTracks = topTracks.slice(0, 50);
-
-        await safeWriteFile(recentlyPlayedFilePath, recentlyPlayed);
-        await safeWriteFile(topTracksFilePath, topTracks);
-        console.log("[Music Sync] Successfully updated recently played & top tracks.");
-      }
-    } catch (err: any) {
-      console.error("[Music Sync] Error during track sync:", err.message);
-    } finally {
-      isSyncing = false;
-    }
-  }
-
-  // Periodic polling check (runs every 10 seconds background)
-  setInterval(syncMusicTracks, 10000);
-  // Initial polling check on startup
-  setTimeout(syncMusicTracks, 2000);
 
   writeDebugLog(`Preparing static routing / Vite middleware. NODE_ENV is: "${process.env.NODE_ENV}"`);
   // Serve with Vite in development, static directory in production
