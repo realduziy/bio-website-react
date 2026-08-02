@@ -18,6 +18,8 @@ export interface Track {
   albumArtUrl?: string;
   playedAt: number;
   playCount?: number;
+  url?: string;
+  nowPlaying?: boolean;
 }
 
 // Discord activity types
@@ -64,4 +66,3 @@ export interface BlogPost {
   createdAt: number;
   updatedAt: number;
 }
-
