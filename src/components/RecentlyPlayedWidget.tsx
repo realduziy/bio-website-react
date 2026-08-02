@@ -171,16 +171,9 @@ export default function RecentlyPlayedWidget({
                       </div>
                     </div>
 
-                    {track.nowPlaying ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-mono text-emerald-400 font-bold uppercase tracking-wider shrink-0 animate-pulse">
-                        <Disc className="w-2.5 h-2.5 animate-spin" />
-                        Scrobbling
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono text-stone-400 shrink-0 select-none uppercase tracking-wider text-right font-medium">
-                        {formatTimeAgo(track.playedAt)}
-                      </span>
-                    )}
+                    <span className="text-[10px] font-mono text-stone-400 shrink-0 select-none uppercase tracking-wider text-right font-medium">
+                      {formatTimeAgo(track.playedAt)}
+                    </span>
                   </div>
                 );
               })
