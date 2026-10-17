@@ -54,67 +54,98 @@ Got [Node.js](https://nodejs.org/) (v18 or higher) installed? Here's how to get 
 
    ---
 
-   ### 🔐 Setting up your Admin Login (`ADMIN_USERNAME_HASH` & `ADMIN_PASSWORD_HASH`)
+---
 
-   To access the **Admin Panel** on your website (to edit blog posts and settings), set your username and password in `.env`. You can do this in two ways:
+## 🧭 Page Routes & Direct Links
 
-   #### Method 1: Plain Text (Quick & Simple)
-   Type your chosen username and password directly into `.env`:
-   ```env
-   ADMIN_USERNAME_HASH=admin
-   ADMIN_PASSWORD_HASH=mySecretPassword123
-   ```
-   *Logging in:* Use `admin` and `mySecretPassword123` on the Admin tab.
+The application includes direct routing for quick access to specific pages:
 
-   #### Method 2: SHA-256 Hash (Recommended for Better Security)
-   Instead of storing your raw password in plain text, you can convert your username and password into a 64-character SHA-256 hash first.
+| Route / Extension | Description | Notes |
+| :--- | :--- | :--- |
+| **`/`** | **Home / Main Portfolio** | Interactive splash landing, Discord presence widget, music tracker, projects showcase, and guestbook. |
+| **`/about`** | **About & Skills** | Direct view of bio, technical skills, and background. |
+| **`/blog`** | **Blog & Logbook** | Full article directory with category filtering (bypasses the landing screen). |
+| **`/blog/<slug>`** | **Single Blog Post** | Direct permalink to a specific article (e.g. `/blog/my-first-post`). |
+| **`/adminportaldev`** | **🔐 Admin Portal** | **Hidden administrative dashboard.** No public link exists on the site to keep it discreet from regular visitors. Navigate directly to this URL to log in. |
 
-   **How to convert username/password to SHA-256:**
-   - **Using Terminal (Linux / Mac / Git Bash):**
-     ```bash
-     echo -n "admin" | sha256sum
-     # Output: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+---
 
-     echo -n "mySecretPassword123" | sha256sum
-     # Output: dbd9225d3090967a5f6e2b2f6ef8292f70b43ef8167f082cf61a5e305e717a6a
-     ```
-   - **Using Online Generators:** Search for "SHA256 generator" online, paste your text, and copy the hash result.
+## 🔐 Admin Portal (`/adminportaldev`)
 
-   Put the hash values into `.env`:
-   ```env
-   ADMIN_USERNAME_HASH=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
-   ADMIN_PASSWORD_HASH=dbd9225d3090967a5f6e2b2f6ef8292f70b43ef8167f082cf61a5e305e717a6a
-   ```
-   *Logging in:* On the website, you still log in with your normal plain text username (`admin`) and password (`mySecretPassword123`). The server checks the hash automatically.
+The **Admin Portal** is located at:
+```
+http://localhost:3000/adminportaldev
+# or on production:
+https://yourdomain.com/adminportaldev
+```
 
-   ---
+### What You Can Do in the Admin Portal:
+- ✍️ **Blog Management**: Draft, write (with live Markdown preview), edit, publish, or delete blog articles.
+- 🎧 **Music Configuration**: Set or update your Last.fm username to sync recently played and top tracks.
+- 🎮 **Discord Integration**: Update your Discord User ID on the fly without editing `.env` or restarting the server.
+- 📊 **Site Insights**: View active visitor stats, total page hits, and server status.
 
-3. **Run the site**:
-   ```bash
-   npm run dev
-   ```
-   Open your browser and head to **`http://localhost:3000`** to view your live site!
+### Setting up Admin Credentials (`ADMIN_USERNAME_HASH` & `ADMIN_PASSWORD_HASH`)
+Set your username and password in your `.env` file before logging in. You can configure them in one of two ways:
+
+#### Method 1: Plain Text (Quick & Simple)
+Type your chosen username and password directly into `.env`:
+```env
+ADMIN_USERNAME_HASH=admin
+ADMIN_PASSWORD_HASH=mySecretPassword123
+```
+*Logging in:* Navigate to `/adminportaldev` and enter `admin` and `mySecretPassword123`.
+
+#### Method 2: SHA-256 Hash (Recommended for Production)
+Convert your username and password into a 64-character SHA-256 hash:
+- **Terminal (Linux / Mac / Git Bash):**
+  ```bash
+  echo -n "admin" | sha256sum
+  # Output: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+
+  echo -n "mySecretPassword123" | sha256sum
+  # Output: dbd9225d3090967a5f6e2b2f6ef8292f70b43ef8167f082cf61a5e305e717a6a
+  ```
+- **Online:** Use any SHA-256 generator to hash your credentials.
+
+Add the hashes to `.env`:
+```env
+ADMIN_USERNAME_HASH=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+ADMIN_PASSWORD_HASH=dbd9225d3090967a5f6e2b2f6ef8292f70b43ef8167f082cf61a5e305e717a6a
+```
+*Logging in:* At `/adminportaldev`, still type your plain text username (`admin`) and password (`mySecretPassword123`). The server validates the cryptographic hash automatically.
 
 ---
 
 ## 🎨 Customizing Your Site
 
-- **Edit Bios & Projects**: Open `src/data/bioData.tsx` to update your bio, social media links, and projects.
+- **Edit Bios & Projects**: Open `src/data/bioData.tsx` to update your bio, social media links, and projects list.
 - **Change Background Video & Music**: Replace `background.mp4` or `background_music.mp3` in the `/assets` folder.
-- **Backup Data**: Back up the `/assets` folder to save your blog posts (`posts.json`), settings, and visitor counts.
+- **Persistent Data & Backups**: Back up the `/assets` directory to preserve all user data:
+  - `posts.json` – Blog articles
+  - `guestbook.json` – Guestbook visitor entries
+  - `visitor_count.json` – Unique visitor logs & lifetime hit counts
+  - `recently_played.json` & `top_tracks.json` – Music scrobbles
+  - `discord_config.json` – Dynamic Discord tracker settings
 
 ---
 
 ## 🐋 Running in Production (Docker & Nginx)
 
-### With Docker Compose
-```bash
-docker compose up -d --build
-```
+### Docker Compose Commands
+
+| Action | Command |
+| :--- | :--- |
+| **Start / Run in background** | `docker compose up -d` |
+| **Rebuild & restart after changes** | `docker compose up -d --build` |
+| **Force clean rebuild (no cache)** *(recommended after `package.json` updates)* | `docker compose build --no-cache && docker compose up -d` |
+| **View live logs** | `docker compose logs -f website-test` |
+| **Check container status** | `docker compose ps` |
+| **Stop container** | `docker compose down` |
 
 ### Reverse Proxy with Nginx & Free SSL (Let's Encrypt)
 
-If hosting on a server, point Nginx to port `8000` and enable HTTPS:
+If hosting on a VPS or cloud server, forward traffic from port 80/443 to internal port `8000`:
 
 1. **Nginx Config** (`/etc/nginx/sites-available/portfolio`):
    ```nginx
@@ -132,7 +163,7 @@ If hosting on a server, point Nginx to port `8000` and enable HTTPS:
    }
    ```
 
-2. **Enable & Enable SSL**:
+2. **Enable Site & Obtain SSL Certificate**:
    ```bash
    sudo ln -s /etc/nginx/sites-available/portfolio /etc/nginx/sites-enabled/
    sudo nginx -t
